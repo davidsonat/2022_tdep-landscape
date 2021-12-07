@@ -1,0 +1,19 @@
+---
+title: "Rock Pool Temperature Model"
+author: "Andy"
+date: "12/7/2021"
+output: pdf_document
+---
+
+```{r}
+temp.df <- read.csv("temperature_data.csv")
+```
+
+First, let's take a look at some of the data and explore it for correlations.
+
+```{r}
+hist(temp.df$MinWTemp)
+hist(temp.df$MeanWTemp)
+hist(temp.df$MaxWTemp)
+```
+
