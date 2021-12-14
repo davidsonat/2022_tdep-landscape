@@ -11,9 +11,70 @@ temp.df <- read.csv("temperature_data.csv")
 
 First, let's take a look at some of the data and explore it for correlations.
 
+Temperature metrics:
+
 ```{r}
 hist(temp.df$MinWTemp)
 hist(temp.df$MeanWTemp)
 hist(temp.df$MaxWTemp)
 ```
 
+
+For this analysis, I'm choosing to focus in on maximum water temperature as our dependent variable, because it has a nice and pretty distribution and correlates well with mean water temperature (which is sort of what we're more interested in here).
+
+```{r}
+plot(MeanWTemp_C ~ MaxWTemp_C, data = temp.df)
+```
+
+
+Possible predictor variables:
+
+```{r}
+hist(temp.df$MaxATemp_C)
+hist(temp.df$Area_m2)
+hist(temp.df$Volume_m3)
+hist(temp.df$Depth_m)
+hist(temp.df$PctShaded)
+```
+
+Lots of right-skewing going on, so let's transform these variables. We'll use log +1 for Area and Depth, and logit for PctShaded since it's a proportion.
+
+```{r}
+temp.df$logArea <- log(temp.df$Area_m2 + 1)
+temp.df$logDepth <- log(temp.df$Depth_m + 1)
+temp.df$logitShade <- log(temp.df$PctShaded/(1-temp.df$PctShaded))
+
+hist(temp.df$logArea)
+hist(temp.df$logDepth)
+hist(temp.df$logitShade)
+```
+
+Shade may still be an issue, because it's heavily zero inflated. I will talk to Ryland about that.
+
+Some plots, to look for correlations:
+
+```{r}
+require(GGally)
+temp2.df <- temp.df
+temp2.df$PoolID <- NULL
+temp2.df$Date <- NULL
+temp2.df$Area_m2 <- NULL
+temp2.df$Volume_m3 <- NULL
+temp2.df$Depth_cm <- NULL
+temp2.df$Depth_m <- NULL
+temp2.df$PctShaded <- NULL
+ggpairs(data = temp2.df)
+```
+
+Area and depth look like good predictors, as does maximum air temperature. Shade is only marginally correlated with maximum air temperature, surprisingly, but I suspect it is still important here. Oddly, there is also some colinearity going on with some of our predictor variables, too (e.g., area x depth, shade x depth).
+
+Let's try making a basic GLMM using these variables, with area and depth as fixed effects and maximum air temperature as a random effect.
+
+```{r}
+require(glmmTMB)
+
+mod1 <- glmmTMB(MaxWTemp_C ~ logDepth * logitShade + (1 | MaxATemp_C), data = temp.df )
+summary(mod1)
+```
+
+Area does not seem like it generally pulls out in the model, with or without depth also included. The model above indicates a significant effect of shade, and a marginally ns effect of depth and interaction with shade. So, deeper and shadier pools are cooler, and a deep and shady pool will be especially cool, but a bigger pool isn't necessarily cooler than a small one?
