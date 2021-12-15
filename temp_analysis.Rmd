@@ -2,7 +2,7 @@
 title: "Rock Pool Temperature Model"
 author: "Andy"
 date: "12/7/2021"
-output: pdf_document
+output: word_document
 ---
 
 ```{r}
@@ -11,23 +11,22 @@ temp.df <- read.csv("temperature_data.csv")
 
 First, let's take a look at some of the data and explore it for correlations.
 
-Temperature metrics:
+# Histograms
+
+## Temperature Metrics
 
 ```{r}
 hist(temp.df$MinWTemp)
 hist(temp.df$MeanWTemp)
 hist(temp.df$MaxWTemp)
-```
 
-
-For this analysis, I'm choosing to focus in on maximum water temperature as our dependent variable, because it has a nice and pretty distribution and correlates well with mean water temperature (which is sort of what we're more interested in here).
-
-```{r}
 plot(MeanWTemp_C ~ MaxWTemp_C, data = temp.df)
 ```
 
 
-Possible predictor variables:
+For this analysis, I'm choosing to focus in on maximum water temperature as our dependent variable, because it has a nice and pretty distribution and correlates well with mean water temperature (which is sort of what we're more interested in here). We could easily use mean temperature as well, but I am hesitant to use it because it does not represent a true daily "mean", because our data were collected over 8 hour periods and not a full 24 hours.
+
+## Predictor Variables
 
 ```{r}
 hist(temp.df$MaxATemp_C)
@@ -37,44 +36,71 @@ hist(temp.df$Depth_m)
 hist(temp.df$PctShaded)
 ```
 
-Lots of right-skewing going on, so let's transform these variables. We'll use log +1 for Area and Depth, and logit for PctShaded since it's a proportion.
+
+## Applying Transformations
+
+Lots of right-skewing going on, so let's transform these variables. We'll use log +1 for Area and Depth, and either logit or arcsine for PctShaded since it's a proportion.
 
 ```{r}
-temp.df$logArea <- log(temp.df$Area_m2 + 1)
-temp.df$logDepth <- log(temp.df$Depth_m + 1)
-temp.df$logitShade <- log(temp.df$PctShaded/(1-temp.df$PctShaded))
+temp.df$Area_cm2 <- temp.df$Area_m2 * 10000
+temp.df$logArea <- log(temp.df$Area_cm2 + 1)
+temp.df$logDepth <- log(temp.df$Depth_cm + 1)
+temp.df$logitShade <- log10(temp.df$PctShaded/(1-temp.df$PctShaded))
+temp.df$arcShade <- asin(sqrt(temp.df$PctShaded))
 
 hist(temp.df$logArea)
 hist(temp.df$logDepth)
 hist(temp.df$logitShade)
+hist(temp.df$arcShade)
 ```
 
-Shade may still be an issue, because it's heavily zero inflated. I will talk to Ryland about that.
+Arcsine seems to do a better job than logit, in this case, but it is still pretty zero inflated.
 
-Some plots, to look for correlations:
+
+# Correlation Plots
 
 ```{r}
 require(GGally)
-temp2.df <- temp.df
-temp2.df$PoolID <- NULL
-temp2.df$Date <- NULL
-temp2.df$Area_m2 <- NULL
-temp2.df$Volume_m3 <- NULL
-temp2.df$Depth_cm <- NULL
-temp2.df$Depth_m <- NULL
-temp2.df$PctShaded <- NULL
+temp2.df <- subset(temp.df, select = c("MaxWTemp_C", "MaxATemp_C", "MeanATemp_C", "logArea", "logDepth", "arcShade"))
 ggpairs(data = temp2.df)
 ```
 
-Area and depth look like good predictors, as does maximum air temperature. Shade is only marginally correlated with maximum air temperature, surprisingly, but I suspect it is still important here. Oddly, there is also some colinearity going on with some of our predictor variables, too (e.g., area x depth, shade x depth).
+Area and depth look like good predictors, as does maximum air temperature and shade. Oddly, there is also some colinearity going on with some of our predictor variables, too (e.g., area x depth, shade x depth).
+
+
+# Preliminary Modeling
 
 Let's try making a basic GLMM using these variables, with area and depth as fixed effects and maximum air temperature as a random effect.
 
 ```{r}
 require(glmmTMB)
+require(performance)
 
-mod1 <- glmmTMB(MaxWTemp_C ~ logDepth * logitShade + (1 | MaxATemp_C), data = temp.df )
+mod1 <- glmmTMB(MaxWTemp_C ~ logDepth * logArea * arcShade + (1 | MaxATemp_C), data = temp.df )
 summary(mod1)
+r2(mod1)
 ```
 
-Area does not seem like it generally pulls out in the model, with or without depth also included. The model above indicates a significant effect of shade, and a marginally ns effect of depth and interaction with shade. So, deeper and shadier pools are cooler, and a deep and shady pool will be especially cool, but a bigger pool isn't necessarily cooler than a small one?
+Nothing is significant except the intercept. Given the colinearity between area and depth, let's try dropping one or both of them.
+
+```{r}
+mod2 <- glmmTMB(MaxWTemp_C ~ logDepth * arcShade + (1 | MaxATemp_C), data = temp.df )
+summary(mod2)
+r2(mod2)
+
+mod3 <- glmmTMB(MaxWTemp_C ~ logArea * arcShade + (1 | MaxATemp_C), data = temp.df )
+summary(mod3)
+r2(mod3)
+```
+
+Model 2, which excludes area but includes depth, has the lowest AIC. It indicates that depth and shade both negatively impact maximum water temperatures, and there is an interaction - deep, shady pools are probably especially cool. Additionally, maximum air temperature does pull out as a significant random effect. 
+
+Model 2 seems to explain less of the variance than the first model, but the parameter estimates are probably more useful. 
+
+## Exploring Other Model Types
+
+Does the marginal R^2^ values being lower than the conditional R^2^ values suggest that air temperature is not a "useful" random effect? Some studies (e.g., Caissie et al. 2001) suggest that water temperature should be modeled as a logistic function of air temperature, instead. Others have done it as a linear function.
+
+There's also the possibility of doing it as a Bayesian hierarchical model, which could be fun, but perhaps not any more (or less) valid.
+
+Ryland also suggested making a composite variable out of area and depth. Mike may know how.
