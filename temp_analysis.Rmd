@@ -104,3 +104,42 @@ Does the marginal R^2^ values being lower than the conditional R^2^ values sugge
 There's also the possibility of doing it as a Bayesian hierarchical model, which could be fun, but perhaps not any more (or less) valid.
 
 Ryland also suggested making a composite variable out of area and depth. Mike may know how.
+
+## Some Quick "Occupancy" Modeling
+
+This is really just a few quick logistic fits of temperature vs. presence/absence of mosquitoes and dragonflies, for the dates we have overlap on. For the JASM abstract.
+
+```{r}
+# Data manipulation
+occ.df <- read.csv("occupancy_trimmed.csv")
+
+occ.df$PoolID <- occ.df$ï..POOL_ID
+occ.df$ï..POOL_ID <- NULL
+occ.df$PoolID <- as.factor(occ.df$PoolID)
+occ.df$Date <- occ.df$DATE
+occ.df$DATE <- NULL
+occ.df$Date <- as.factor(occ.df$Date)
+
+temp.df$PoolID <- as.factor(temp.df$PoolID)
+temp.df$Date <- as.factor(temp.df$Date)
+
+occ_analysis.df <- merge(occ.df, temp.df, by = c("PoolID", "Date"))
+
+# Quick and dirty logistic models
+require(ggplot)
+logmod1 <- lm(MOSQUITO ~ MeanWTemp_C, family = binomial, data = occ_analysis.df)
+summary(logmod1)
+
+ggplot(occ_analysis.df, aes(y = MOSQUITO, x = MaxWTemp_C)) +
+  geom_point() + 
+  stat_smooth(method = "glm", se = TRUE, method.args = list(family = binomial))
+
+logmod2 <- lm(DRAGONFLY ~ MaxWTemp_C, family = binomial, data = occ_analysis.df)
+summary(logmod2)
+
+ggplot(occ_analysis.df, aes(y = DRAGONFLY, x = MaxWTemp_C)) +
+  geom_point() + 
+  stat_smooth(method = "glm", se = TRUE, method.args = list(family = binomial))
+```
+
+So... Logistic fit for the dragonflies doesn't work at all, because there are very few pools in this set with dragons (like five?). The mosquito model suggests preference for warmer pools, but the r^2^ value is very low for both max and mean water temps (0.039 and 0.074 respectively) despite significant parameter estimates.
