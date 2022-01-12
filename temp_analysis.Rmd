@@ -52,16 +52,18 @@ hist(temp.df$logArea)
 hist(temp.df$logDepth)
 hist(temp.df$logitShade)
 hist(temp.df$arcShade)
+
+temp.df$Date <- as.factor(temp.df$Date)
+temp.df$ShadeCat <- as.factor(temp.df$Shade)
 ```
 
 Arcsine seems to do a better job than logit, in this case, but it is still pretty zero inflated.
-
 
 # Correlation Plots
 
 ```{r}
 require(GGally)
-temp2.df <- subset(temp.df, select = c("MaxWTemp_C", "MaxATemp_C", "MeanATemp_C", "logArea", "logDepth", "arcShade"))
+temp2.df <- subset(temp.df, select = c("MaxWTemp_C", "MaxATemp_C", "MeanATemp_C", "logArea", "logDepth", "PctShaded", "arcShade", "ShadeTF"))
 ggpairs(data = temp2.df)
 ```
 
@@ -70,32 +72,105 @@ Area and depth look like good predictors, as does maximum air temperature and sh
 
 # Preliminary Modeling
 
-Let's try making a basic GLMM using these variables, with area and depth as fixed effects and maximum air temperature as a random effect.
+Let's try making a basic GLMM using these variables, with area and depth as fixed effects and maximum air temperature as a random effect. We'll take a stepwise approach to model selection.
 
 ```{r}
 require(glmmTMB)
 require(performance)
 
+# Depth, Area, Shade, and Air temp 
 mod1 <- glmmTMB(MaxWTemp_C ~ logDepth * logArea * arcShade + (1 | MaxATemp_C), data = temp.df )
 summary(mod1)
 r2(mod1)
-```
 
-Nothing is significant except the intercept. Given the colinearity between area and depth, let's try dropping one or both of them.
-
-```{r}
+# Depth, Shade, and Air Temp
 mod2 <- glmmTMB(MaxWTemp_C ~ logDepth * arcShade + (1 | MaxATemp_C), data = temp.df )
 summary(mod2)
 r2(mod2)
 
+# Area, Shade, and Air Temp
 mod3 <- glmmTMB(MaxWTemp_C ~ logArea * arcShade + (1 | MaxATemp_C), data = temp.df )
 summary(mod3)
 r2(mod3)
+
+# Depth, Shade, and Area
+mod4 <- glmmTMB(MaxWTemp_C ~ logDepth * logArea * arcShade, data = temp.df )
+summary(mod4)
+r2(mod4)
+
+# Depth, Area, and Air Temp
+mod5 <- glmmTMB(MaxWTemp_C ~ logDepth * logArea + (1 | MaxATemp_C), data = temp.df )
+summary(mod5)
+r2(mod5)
+
+# Depth and Shade
+mod6 <- glmmTMB(MaxWTemp_C ~ logDepth * arcShade, data = temp.df )
+summary(mod6)
+r2(mod6)
+
+# Depth and Air Temp
+mod7 <- glmmTMB(MaxWTemp_C ~ logDepth + (1 | MaxATemp_C), data = temp.df )
+summary(mod7)
+r2(mod7)
+
+# Depth and Area
+mod8 <- glmmTMB(MaxWTemp_C ~ logDepth * logArea, data = temp.df )
+summary(mod8)
+r2(mod8)
+
+# Area and Shade
+mod9 <- glmmTMB(MaxWTemp_C ~ logArea * arcShade, data = temp.df )
+summary(mod9)
+r2(mod9)
+
+# Area and Air Temp
+mod10 <- glmmTMB(MaxWTemp_C ~ logArea + (1 | MaxATemp_C), data = temp.df )
+summary(mod10)
+r2(mod10)
+
+# Shade and Air Temp
+mod11 <- glmmTMB(MaxWTemp_C ~ arcShade + (1 | MaxATemp_C), data = temp.df )
+summary(mod11)
+r2(mod11)
+
+# Area alone
+mod12 <- glmmTMB(MaxWTemp_C ~ logArea, data = temp.df )
+summary(mod12)
+r2(mod12)
+
+# Shade alone
+mod13 <- glmmTMB(MaxWTemp_C ~ arcShade, data = temp.df )
+summary(mod13)
+r2(mod13)
+
+# Depth alone
+mod14 <- glmmTMB(MaxWTemp_C ~ logDepth, data = temp.df )
+summary(mod14)
+r2(mod14)
+
+# Air Temp alone
+mod15 <- glmmTMB(MaxWTemp_C ~ (1 | MaxATemp_C), data = temp.df )
+summary(mod15)
+r2(mod15)
+
+
+# There are four dates worth of temperature data but only three air temps for those dates. Perhaps date should be a random effect too?
+mod16 <- glmmTMB(MaxWTemp_C ~ logDepth * arcShade + ( 1 | Date ), ziformula = ~ PctShaded, data = temp.df )
+summary(mod16)
+r2(mod16)
+
+
+# Categorical shade
+mod17 <- glmmTMB(MaxWTemp_C ~ logDepth * ShadeCat + ( 1 | Date ), data = temp.df )
+summary(mod17)
+r2(mod17)
 ```
 
-Model 2, which excludes area but includes depth, has the lowest AIC. It indicates that depth and shade both negatively impact maximum water temperatures, and there is an interaction - deep, shady pools are probably especially cool. Additionally, maximum air temperature does pull out as a significant random effect. 
+Model 2, which excludes area but includes depth, has the lowest AIC. It indicates that depth and shade both negatively impact maximum water temperatures, and there is an interaction - deep, shady pools are probably especially cool. Additionally, maximum air temperature does pull out as a significant random effect. It has the second-highest r^2^ value, after model 1.
 
-Model 2 seems to explain less of the variance than the first model, but the parameter estimates are probably more useful. 
+Curiously, the max air temperature for two of the dates is the same, so I tried it with date as a random effect instead of air temperature, which returned the highest AIC and r^2^ value. It's likely that date accounts for more variation in other atmospheric conditions (i.e., temperature variation and mean) than maximum air temperature alone does. I also wonder if it would just be easier to bin our shade variables.
+
+It should be noted that there is some debate as to the validity and how to calculate r^2^ values for mixed models. See Nakagawa and Schielzeth 2012 in Methods in Ecology and Evolution.
 
 ## Exploring Other Model Types
 
@@ -104,6 +179,8 @@ Does the marginal R^2^ values being lower than the conditional R^2^ values sugge
 There's also the possibility of doing it as a Bayesian hierarchical model, which could be fun, but perhaps not any more (or less) valid.
 
 Ryland also suggested making a composite variable out of area and depth. Mike may know how.
+
+Water temperature data for the river is unavailable.
 
 ## Some Quick "Occupancy" Modeling
 
@@ -126,15 +203,15 @@ temp.df$Date <- as.factor(temp.df$Date)
 occ_analysis.df <- merge(occ.df, temp.df, by = c("PoolID", "Date"))
 
 # Quick and dirty logistic models
-require(ggplot)
-logmod1 <- lm(MOSQUITO ~ MeanWTemp_C, family = binomial, data = occ_analysis.df)
+require(ggplot2)
+logmod1 <- glm(MOSQUITO ~ MeanWTemp_C, family = binomial, data = occ_analysis.df)
 summary(logmod1)
 
 ggplot(occ_analysis.df, aes(y = MOSQUITO, x = MaxWTemp_C)) +
   geom_point() + 
   stat_smooth(method = "glm", se = TRUE, method.args = list(family = binomial))
 
-logmod2 <- lm(DRAGONFLY ~ MaxWTemp_C, family = binomial, data = occ_analysis.df)
+logmod2 <- glm(DRAGONFLY ~ MaxWTemp_C, family = binomial, data = occ_analysis.df)
 summary(logmod2)
 
 ggplot(occ_analysis.df, aes(y = DRAGONFLY, x = MaxWTemp_C)) +
