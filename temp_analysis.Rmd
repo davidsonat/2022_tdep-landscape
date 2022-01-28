@@ -7,6 +7,8 @@ output: word_document
 
 ```{r}
 temp.df <- read.csv("temperature_data.csv")
+dist.df <- read.csv("riverdistance_data.csv")
+temp.df <- merge(temp.df, dist.df)
 ```
 
 First, let's take a look at some of the data and explore it for correlations.
@@ -39,12 +41,12 @@ hist(temp.df$PctShaded)
 
 ## Applying Transformations
 
-Lots of right-skewing going on, so let's transform these variables. We'll use log +1 for Area and Depth, and either logit or arcsine for PctShaded since it's a proportion.
+Lots of right-skewing going on, so let's transform these variables. We'll use log for Area and Depth, and either logit or arcsine for PctShaded since it's a proportion.
 
 ```{r}
 temp.df$Area_cm2 <- temp.df$Area_m2 * 10000
-temp.df$logArea <- log(temp.df$Area_cm2 + 1)
-temp.df$logDepth <- log(temp.df$Depth_cm + 1)
+temp.df$logArea <- log(temp.df$Area_cm2)
+temp.df$logDepth <- log(temp.df$Depth_cm)
 temp.df$arcShade <- asin(sqrt(temp.df$PctShaded))
 
 temp.df$Date <- as.factor(temp.df$Date)
@@ -58,7 +60,7 @@ Arcsine seems to do a better job than logit, in this case, but it is still prett
 
 ```{r}
 require(GGally)
-temp2.df <- subset(temp.df, select = c("MaxWTemp_C", "MaxATemp_C", "MaxRTemp_C", "logArea", "logDepth", "arcShade", "ShadeCat"))
+temp2.df <- subset(temp.df, select = c("MaxWTemp_C", "MaxATemp_C", "MaxRTemp_C", "logArea", "logDepth", "arcShade", "ShadeCat", "dist"))
 ggpairs(data = temp2.df)
 ```
 
@@ -147,13 +149,6 @@ r2(mod14)
 mod15 <- glmmTMB(MaxWTemp_C ~ (1 | MaxATemp_C), data = temp.df )
 summary(mod15)
 r2(mod15)
-
-
-# River Temp as a random effect instead of date/air temp
-mod16 <- glmmTMB(MaxWTemp_C ~ logDepth * PctShaded + ( 1 | MaxRTemp_C ), data = temp.df )
-summary(mod16)
-r2(mod16)
-
 ```
 
 Model 2, which excludes area but includes depth, has the lowest AIC. It indicates that depth and shade both negatively impact maximum water temperatures, and there is an interaction - deep, shady pools are probably especially cool. Additionally, maximum air temperature does pull out as a significant random effect. It has the second-highest r^2^ value, after model 1.
@@ -162,11 +157,35 @@ Curiously, the max air temperature for two of the dates is the same, so I tried 
 
 Water temperature data for the river is unavailable through the usual sources at the Westham Gage. Cartersville is available, and using max river temps from there in place of date returns similar AIC values. This might be a better predictive covariate than date and may help capture some of longer term variation in atmospheric conditions.
 
-Continuous, untransformed shade actually provides a lower AIC value than binning it (0-25%, 25-50%, 50-75%, 75-100%) or arcsine transforming it.
+```{r}
+# River Temp as a random effect instead of date/air temp
+mod16 <- glmmTMB(MaxWTemp_C ~ logDepth * PctShaded + ( 1 | MaxRTemp_C ), data = temp.df )
+summary(mod16)
+r2(mod16)
+
+temp.df$residual <- residuals(mod16)
+```
+
+
+Continuous, untransformed shade actually provides a lower AIC value than binning it (0-20%, 20-40%, 40-60%, 60-80%, 80-100%) or arcsine transforming it. Binning it has a marginally better r^2^ value.
 
 It should be noted that there is some debate as to the validity and how to calculate r^2^ values for mixed models. See Nakagawa and Schielzeth 2012 in Methods in Ecology and Evolution. It may be better to do model validation based on its predictive ability.
 
-Ryland suggested making a composite variable out of area and depth, because they are mildly correlated here. Mike may know how.
+```{r}
+mod17 <- glmmTMB(MaxWTemp_C ~ logDepth * ShadeCat + ( 1 | MaxRTemp_C ), data = temp.df )
+summary(mod17)
+r2(mod17)
+```
+
+Including distance from river channel improves things too, but only marginally, and oddly, the parameter estimates for it aren't significant.
+
+```{r}
+mod18 <- glmmTMB(MaxWTemp_C ~ logDepth * PctShaded * dist + ( 1 | MaxRTemp_C ), data = temp.df )
+summary(mod18)
+r2(mod18)
+temp.df$residual <- residuals(mod18)
+```
+
 
 
 ## Predicting from the Model
@@ -177,8 +196,6 @@ predict.df <- prediction(mod16, data = temp.df, calculate_se = TRUE)
 predict.df$diffpred <- predict.df$fitted/predict.df$MaxWTemp_C
 
 plot(x = predict.df$MaxWTemp_C, y = predict.df$diffpred)
-plot(x = predict.df$MaxWTemp_C, y = predict.df$fitted)
-
 mean(predict.df$diffpred)
 ```
 
@@ -187,41 +204,35 @@ Yep, so there's some bias here. It overestimates cool pools (by as much as 30%) 
 This isn't necessarily the end of the world, because we can be careful about how we propagate error. The predictions include std. errors, which could be incorporated into any future models stemming from this one.
 
 
-## Some Quick "Occupancy" Modeling
 
-This is really just a few quick logistic fits of temperature vs. presence/absence of mosquitoes and dragonflies, for the dates we have overlap on. For the JASM abstract.
+# Spatially Explicit Modeling
+
+First, let's check for spatial autocorrelation in the residuals of the model. Similar residuals in neighboring pools may suggest autocorrelation.
 
 ```{r}
-# Data manipulation
-occ.df <- read.csv("occupancy_trimmed.csv")
-
-occ.df$PoolID <- occ.df$ï..POOL_ID
-occ.df$ï..POOL_ID <- NULL
-occ.df$PoolID <- as.factor(occ.df$PoolID)
-occ.df$Date <- occ.df$DATE
-occ.df$DATE <- NULL
-occ.df$Date <- as.factor(occ.df$Date)
-
-temp.df$PoolID <- as.factor(temp.df$PoolID)
-temp.df$Date <- as.factor(temp.df$Date)
-
-occ_analysis.df <- merge(occ.df, temp.df, by = c("PoolID", "Date"))
-
-# Quick and dirty logistic models
-require(ggplot2)
-logmod1 <- glm(MOSQUITO ~ MeanWTemp_C, family = binomial, data = occ_analysis.df)
-summary(logmod1)
-
-ggplot(occ_analysis.df, aes(y = MOSQUITO, x = MaxWTemp_C)) +
-  geom_point() + 
-  stat_smooth(method = "glm", se = TRUE, method.args = list(family = binomial))
-
-logmod2 <- glm(DRAGONFLY ~ MaxWTemp_C, family = binomial, data = occ_analysis.df)
-summary(logmod2)
-
-ggplot(occ_analysis.df, aes(y = DRAGONFLY, x = MaxWTemp_C)) +
-  geom_point() + 
-  stat_smooth(method = "glm", se = TRUE, method.args = list(family = binomial))
+require(sp)
+coordinates(temp.df) <- ~lat + long
+bubble(temp.df, "residual")
 ```
 
-So... Logistic fit for the dragonflies doesn't work at all, because there are very few pools in this set with dragons (like five?). The mosquito model suggests preference for warmer pools, but the r^2^ value is very low for both max and mean water temps (0.039 and 0.074 respectively) despite significant parameter estimates.
+I'm not sure how to incorporate this into a GLMM, but this can maybe be done in glmmtmb.
+
+```{r}
+temp.df$pos <- numFactor(temp.df$long, temp.df$lat)
+temp.df$group <- factor(rep(1, nrow(temp.df)))
+
+spatial.glmm <- glmmTMB(MaxWTemp_C ~ logDepth * logitShade + ( 1 | MaxRTemp_C ) + exp(pos + 0 | group), data = temp.df )
+summary(spatial.glmm)
+```
+
+Better AIC and a much smaller dispersion estimate. Let's see how it handles predictions.
+
+```{r}
+predict2.df <- prediction(spatial.glmm, data = temp.df, calculate_se = TRUE)
+predict2.df$diffpred <- predict2.df$fitted/predict2.df$MaxWTemp_C
+
+plot(x = predict.df$MaxWTemp_C, y = predict.df$diffpred)
+plot(x = predict2.df$MaxWTemp_C, y = predict2.df$diffpred)
+```
+
+Interesting. It does seem to have tamped down on the over/underestimating some. It is still present, but most pools are within +/- 5%.
