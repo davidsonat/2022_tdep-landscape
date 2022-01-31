@@ -2,22 +2,24 @@
 title: "Rock Pool Temperature Model"
 author: "Andy"
 date: "12/7/2021"
-output: word_document
+output:
+  html_document:
+    df_print: paged
 ---
 
-```{r}
+```{r, echo = FALSE}
 temp.df <- read.csv("temperature_data.csv")
 dist.df <- read.csv("riverdistance_data.csv")
 temp.df <- merge(temp.df, dist.df)
 ```
 
-First, let's take a look at some of the data and explore it for correlations.
-
 # Histograms
+
+First, let's take a look at some of the data and explore it for correlations.
 
 ## Temperature Metrics
 
-```{r}
+```{r, echo = FALSE}
 hist(temp.df$MinWTemp)
 hist(temp.df$MeanWTemp)
 hist(temp.df$MaxWTemp)
@@ -30,7 +32,7 @@ For this analysis, I'm choosing to focus in on maximum water temperature as our 
 
 ## Predictor Variables
 
-```{r}
+```{r, echo = FALSE}
 hist(temp.df$MaxATemp_C)
 hist(temp.df$Area_m2)
 hist(temp.df$Volume_m3)
@@ -41,7 +43,7 @@ hist(temp.df$PctShaded)
 
 ## Applying Transformations
 
-Lots of right-skewing going on, so let's transform these variables. We'll use log for Area and Depth, and either logit or arcsine for PctShaded since it's a proportion.
+Lots of right-skewing going on, so we'll do a few transformations. log for Area and Depth, and arcsine for PctShaded since it's a proportion.
 
 ```{r}
 temp.df$Area_cm2 <- temp.df$Area_m2 * 10000
@@ -54,12 +56,11 @@ temp.df$Date <- as.factor(temp.df$Date)
 plot(x = temp.df$ShadeCat, y = temp.df$MaxWTemp_C)
 ```
 
-Arcsine seems to do a better job than logit, in this case, but it is still pretty zero inflated.
 
 # Correlation Plots
 
-```{r}
-require(GGally)
+```{r, echo = FALSE}
+library(GGally)
 temp2.df <- subset(temp.df, select = c("MaxWTemp_C", "MaxATemp_C", "MaxRTemp_C", "logArea", "logDepth", "arcShade", "ShadeCat", "dist"))
 ggpairs(data = temp2.df)
 ```
@@ -71,89 +72,88 @@ Area and depth look like good predictors, as does maximum air temperature and sh
 
 Let's try making a basic GLMM using these variables, with area and depth as fixed effects and maximum air temperature as a random effect. We'll take a stepwise approach to model selection.
 
-```{r}
-require(glmmTMB)
-require(performance)
+```{r, echo = FALSE, results = "hide"}
+library(glmmTMB)
+library(performance)
 
 # Depth, Area, Shade, and Air temp 
 mod1 <- glmmTMB(MaxWTemp_C ~ logDepth * logArea * arcShade + (1 | MaxATemp_C), data = temp.df )
 summary(mod1)
-r2(mod1)
 
 # Depth, Shade, and Air Temp
 mod2 <- glmmTMB(MaxWTemp_C ~ logDepth * arcShade + (1 | MaxATemp_C), data = temp.df )
 summary(mod2)
-r2(mod2)
 
 # Area, Shade, and Air Temp
 mod3 <- glmmTMB(MaxWTemp_C ~ logArea * arcShade + (1 | MaxATemp_C), data = temp.df )
 summary(mod3)
-r2(mod3)
 
 # Depth, Shade, and Area
 mod4 <- glmmTMB(MaxWTemp_C ~ logDepth * logArea * arcShade, data = temp.df )
 summary(mod4)
-r2(mod4)
 
 # Depth, Area, and Air Temp
 mod5 <- glmmTMB(MaxWTemp_C ~ logDepth * logArea + (1 | MaxATemp_C), data = temp.df )
 summary(mod5)
-r2(mod5)
 
 # Depth and Shade
 mod6 <- glmmTMB(MaxWTemp_C ~ logDepth * arcShade, data = temp.df )
 summary(mod6)
-r2(mod6)
 
 # Depth and Air Temp
 mod7 <- glmmTMB(MaxWTemp_C ~ logDepth + (1 | MaxATemp_C), data = temp.df )
 summary(mod7)
-r2(mod7)
 
 # Depth and Area
 mod8 <- glmmTMB(MaxWTemp_C ~ logDepth * logArea, data = temp.df )
 summary(mod8)
-r2(mod8)
 
 # Area and Shade
 mod9 <- glmmTMB(MaxWTemp_C ~ logArea * arcShade, data = temp.df )
 summary(mod9)
-r2(mod9)
 
 # Area and Air Temp
 mod10 <- glmmTMB(MaxWTemp_C ~ logArea + (1 | MaxATemp_C), data = temp.df )
 summary(mod10)
-r2(mod10)
 
 # Shade and Air Temp
 mod11 <- glmmTMB(MaxWTemp_C ~ arcShade + (1 | MaxATemp_C), data = temp.df )
 summary(mod11)
-r2(mod11)
 
 # Area alone
 mod12 <- glmmTMB(MaxWTemp_C ~ logArea, data = temp.df )
 summary(mod12)
-r2(mod12)
 
 # Shade alone
 mod13 <- glmmTMB(MaxWTemp_C ~ arcShade, data = temp.df )
 summary(mod13)
-r2(mod13)
 
 # Depth alone
 mod14 <- glmmTMB(MaxWTemp_C ~ logDepth, data = temp.df )
 summary(mod14)
-r2(mod14)
 
 # Air Temp alone
 mod15 <- glmmTMB(MaxWTemp_C ~ (1 | MaxATemp_C), data = temp.df )
 summary(mod15)
-r2(mod15)
 ```
 
-Model 2, which excludes area but includes depth, has the lowest AIC. It indicates that depth and shade both negatively impact maximum water temperatures, and there is an interaction - deep, shady pools are probably especially cool. Additionally, maximum air temperature does pull out as a significant random effect. It has the second-highest r^2^ value, after model 1.
+```{r, echo = FALSE}
+library(AICcmodavg)
+library(dplyr)
+library(reshape2)
+library(kimisc)
+model_list <- nlist(mod1, mod2, mod3, mod4, mod5, mod6, mod7, mod8, mod9, mod10, mod11, mod12, mod13, mod14, mod15)
+aic_table <- aictab(model_list)
+model_vars <- sapply(model_list, function(x) gsub(":", "*", paste(names(x$frame), collapse = " + ")))
+aic_table <- cbind(Modnames = names(model_vars), model_vars) %>%
+  merge(aic_table, by = "Modnames") %>%
+  arrange(AICc)
+aic_table
+```
 
-Curiously, the max air temperature for two of the dates is the same, so I tried it with date as a random effect instead of air temperature, which returned a lower AIC value and r^2^ value than model 2. It's likely that date accounts for more variation in other atmospheric conditions (i.e., temperature variation and mean) than maximum air temperature alone does. 
+Model 2, which excludes area but includes depth, has the lowest AIC. It indicates that depth and shade both negatively impact maximum water temperatures, and there is an interaction - deep, shady pools are probably especially cool. Additionally, maximum air temperature does pull out as a significant random effect.
+
+Curiously, the max air temperature for two of the dates is the same, so I tried it with date as a random effect instead of air temperature, which returned a lower AIC value than model 2. It's likely that date accounts for more variation in other atmospheric conditions (i.e., temperature variation and mean) than maximum air temperature alone does. 
 
 Water temperature data for the river is unavailable through the usual sources at the Westham Gage. Cartersville is available, and using max river temps from there in place of date returns similar AIC values. This might be a better predictive covariate than date and may help capture some of longer term variation in atmospheric conditions.
 
@@ -161,20 +161,14 @@ Water temperature data for the river is unavailable through the usual sources at
 # River Temp as a random effect instead of date/air temp
 mod16 <- glmmTMB(MaxWTemp_C ~ logDepth * PctShaded + ( 1 | MaxRTemp_C ), data = temp.df )
 summary(mod16)
-r2(mod16)
-
 temp.df$residual <- residuals(mod16)
 ```
 
-
-Continuous, untransformed shade actually provides a lower AIC value than binning it (0-20%, 20-40%, 40-60%, 60-80%, 80-100%) or arcsine transforming it. Binning it has a marginally better r^2^ value.
-
-It should be noted that there is some debate as to the validity and how to calculate r^2^ values for mixed models. See Nakagawa and Schielzeth 2012 in Methods in Ecology and Evolution. It may be better to do model validation based on its predictive ability.
+Continuous, untransformed shade actually provides a lower AIC value than binning it (0-20%, 20-40%, 40-60%, 60-80%, 80-100%) or arcsine transforming it.
 
 ```{r}
 mod17 <- glmmTMB(MaxWTemp_C ~ logDepth * ShadeCat + ( 1 | MaxRTemp_C ), data = temp.df )
 summary(mod17)
-r2(mod17)
 ```
 
 Including distance from river channel improves things too, but only marginally, and oddly, the parameter estimates for it aren't significant.
@@ -182,16 +176,14 @@ Including distance from river channel improves things too, but only marginally, 
 ```{r}
 mod18 <- glmmTMB(MaxWTemp_C ~ logDepth * PctShaded * dist + ( 1 | MaxRTemp_C ), data = temp.df )
 summary(mod18)
-r2(mod18)
 temp.df$residual <- residuals(mod18)
 ```
-
 
 
 ## Predicting from the Model
 
 ```{r}
-require(prediction)
+library(prediction)
 predict.df <- prediction(mod16, data = temp.df, calculate_se = TRUE)
 predict.df$diffpred <- predict.df$fitted/predict.df$MaxWTemp_C
 
@@ -204,30 +196,30 @@ Yep, so there's some bias here. It overestimates cool pools (by as much as 30%) 
 This isn't necessarily the end of the world, because we can be careful about how we propagate error. The predictions include std. errors, which could be incorporated into any future models stemming from this one.
 
 
-
 # Spatially Explicit Modeling
 
-First, let's check for spatial autocorrelation in the residuals of the model. Similar residuals in neighboring pools may suggest autocorrelation.
+In an attempt to solve our issues with overdispersion and biased estimates, let's try accounting for spatial autocorrelation. First, let's check for spatial autocorrelation in the residuals of the model. Similar residuals in neighboring pools may suggest autocorrelation.
 
 ```{r}
-require(sp)
-coordinates(temp.df) <- ~lat + long
+library(sp)
+coordinates(temp.df) <- ~long + lat
 bubble(temp.df, "residual")
 ```
 
-I'm not sure how to incorporate this into a GLMM, but this can maybe be done in glmmtmb.
+I'm not sure how to incorporate this into a GLMM, but this can maybe be done in glmmtmb. Below is a stab at this, using the lat/long coordinates as a covariate structure.
 
-```{r}
+```{r, echo = FALSE}
 temp.df$pos <- numFactor(temp.df$long, temp.df$lat)
 temp.df$group <- factor(rep(1, nrow(temp.df)))
 
-spatial.glmm <- glmmTMB(MaxWTemp_C ~ logDepth * logitShade + ( 1 | MaxRTemp_C ) + exp(pos + 0 | group), data = temp.df )
-summary(spatial.glmm)
+library(sjPlot)
+spatial.glmm <- glmmTMB(MaxWTemp_C ~ logDepth * PctShaded + ( 1 | MaxRTemp_C ) + exp(pos + 0 | group), data = temp.df )
+tab_model(spatial.glmm, show.aic = TRUE, show.loglik = TRUE)
 ```
 
-Better AIC and a much smaller dispersion estimate. Let's see how it handles predictions.
+Better AIC and a much smaller dispersion estimate, at around 2.17. Let's see how it handles predictions.
 
-```{r}
+```{r, echo = FALSE}
 predict2.df <- prediction(spatial.glmm, data = temp.df, calculate_se = TRUE)
 predict2.df$diffpred <- predict2.df$fitted/predict2.df$MaxWTemp_C
 
@@ -236,3 +228,20 @@ plot(x = predict2.df$MaxWTemp_C, y = predict2.df$diffpred)
 ```
 
 Interesting. It does seem to have tamped down on the over/underestimating some. It is still present, but most pools are within +/- 5%.
+
+Million dollar question: can we plot it?
+
+```{r, echo = FALSE}
+library(ggplot2)
+library(viridis)
+
+ggplot(data = predict2.df, aes(y = lat, x = long, colour = fitted)) +
+  geom_point(size = 3.5, fill = "black") + 
+  scale_colour_viridis() +
+  theme(panel.background = element_rect(fill = "black", colour = "black", size = 0.5, linetype = "solid"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank()) +
+  labs(colour = "Temp (°C)")
+```
+
+The next step will be to challenge the model (and ourselves) a bit. Can we simulate a day on which the river temperature is 25°C, as an example, and predict temperatures for the whole system? I will need a data set containing pool dimensions and the densiometer data for the full system.
