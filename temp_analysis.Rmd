@@ -8,9 +8,9 @@ output:
 ---
 
 ```{r, echo = FALSE}
-temp.df <- read.csv("temperature_data.csv")
-dist.df <- read.csv("riverdistance_data.csv")
-temp.df <- merge(temp.df, dist.df)
+temponly.df <- read.csv("temperature_data.csv")
+abiotic.df <- read.csv("abiotic_data_trimmed.csv")
+temp.df <- merge(temponly.df, abiotic.df)
 ```
 
 # Histograms
@@ -33,11 +33,25 @@ For this analysis, I'm choosing to focus in on maximum water temperature as our 
 ## Predictor Variables
 
 ```{r, echo = FALSE}
+temp.df$DistRC_m <- as.numeric(temp.df$DistRC_m)
+
+temp.df$Depth_cm <- as.numeric(temp.df$Depth_cm)
+temp.df$Depth_m <- temp.df$Depth_cm/100
+
+temp.df$SurfArea_cm2 <- as.numeric(temp.df$SurfArea_cm2)
+temp.df$SurfArea_m2 <- temp.df$SurfArea_cm2/10000
+
+temp.df$Volume_cm3 <- as.numeric(temp.df$Volume_cm3)
+temp.df$Volume_m3 <- temp.df$Volume_cm3/1000000
+
+temp.df$Pct_Shaded <- as.numeric(temp.df$Pct_Shaded)
+temp.df$Pct_Shaded <- temp.df$Pct_Shaded/100
+
 hist(temp.df$MaxATemp_C)
-hist(temp.df$Area_m2)
+hist(temp.df$SurfArea_m2)
 hist(temp.df$Volume_m3)
 hist(temp.df$Depth_m)
-hist(temp.df$PctShaded)
+hist(temp.df$Pct_Shaded)
 ```
 
 
@@ -46,14 +60,11 @@ hist(temp.df$PctShaded)
 Lots of right-skewing going on, so we'll do a few transformations. log for Area and Depth, and arcsine for PctShaded since it's a proportion.
 
 ```{r}
-temp.df$Area_cm2 <- temp.df$Area_m2 * 10000
-temp.df$logArea <- log(temp.df$Area_cm2)
+temp.df$logArea <- log(temp.df$SurfArea_cm2)
 temp.df$logDepth <- log(temp.df$Depth_cm)
-temp.df$arcShade <- asin(sqrt(temp.df$PctShaded))
+temp.df$arcShade <- asin(sqrt(temp.df$Pct_Shaded))
 
 temp.df$Date <- as.factor(temp.df$Date)
-
-plot(x = temp.df$ShadeCat, y = temp.df$MaxWTemp_C)
 ```
 
 
@@ -61,7 +72,7 @@ plot(x = temp.df$ShadeCat, y = temp.df$MaxWTemp_C)
 
 ```{r, echo = FALSE}
 library(GGally)
-temp2.df <- subset(temp.df, select = c("MaxWTemp_C", "MaxATemp_C", "MaxRTemp_C", "logArea", "logDepth", "arcShade", "ShadeCat", "dist"))
+temp2.df <- subset(temp.df, select = c("MaxWTemp_C", "MaxATemp_C", "MaxRTemp_C", "logArea", "logDepth", "arcShade", "DistRC_m"))
 ggpairs(data = temp2.df)
 ```
 
@@ -159,26 +170,52 @@ Water temperature data for the river is unavailable through the usual sources at
 
 ```{r}
 # River Temp as a random effect instead of date/air temp
-mod16 <- glmmTMB(MaxWTemp_C ~ logDepth * PctShaded + ( 1 | MaxRTemp_C ), data = temp.df )
+library(MuMIn)
+mod16 <- glmmTMB(MaxWTemp_C ~ logDepth * Pct_Shaded + ( 1 | MaxRTemp_C ), data = temp.df )
 summary(mod16)
 temp.df$residual <- residuals(mod16)
+r.squaredGLMM(mod16)
 ```
 
 Continuous, untransformed shade actually provides a lower AIC value than binning it (0-20%, 20-40%, 40-60%, 60-80%, 80-100%) or arcsine transforming it.
 
 ```{r}
-mod17 <- glmmTMB(MaxWTemp_C ~ logDepth * ShadeCat + ( 1 | MaxRTemp_C ), data = temp.df )
-summary(mod17)
+#mod17 <- glmmTMB(MaxWTemp_C ~ logDepth * ShadeCat + ( 1 | MaxRTemp_C ), data = temp.df )
+#summary(mod17)
+#r.squaredGLMM(mod17)
 ```
 
 Including distance from river channel improves things too, but only marginally, and oddly, the parameter estimates for it aren't significant.
 
 ```{r}
-mod18 <- glmmTMB(MaxWTemp_C ~ logDepth * PctShaded * dist + ( 1 | MaxRTemp_C ), data = temp.df )
+mod18 <- glmmTMB(MaxWTemp_C ~ logDepth * Pct_Shaded * DistRC_m + ( 1 | MaxRTemp_C ), data = temp.df )
 summary(mod18)
-temp.df$residual <- residuals(mod18)
+r.squaredGLMM(mod18)
 ```
 
+Some other suggestions: river temperature as a fixed effect instead of a random effect, and pool ID as a random effect.
+
+```{r}
+temp.df$Pool_ID <- as.factor(temp.df$Pool_ID)
+mod19 <- glmmTMB(MaxWTemp_C ~ logDepth * Pct_Shaded + ( 1 | MaxRTemp_C ) + (1 | Pool_ID), data = temp.df )
+summary(mod19)
+r.squaredGLMM(mod19)
+
+mod20 <- glmmTMB(MaxWTemp_C ~ logDepth * Pct_Shaded + (1 | Pool_ID), data = temp.df )
+summary(mod20)
+r.squaredGLMM(mod20)
+
+mod21 <- glmmTMB(MaxWTemp_C ~ logDepth * Pct_Shaded * MaxRTemp_C, data = temp.df )
+summary(mod21)
+
+mod22 <- glmmTMB(MaxWTemp_C ~ logDepth * Pct_Shaded * MaxRTemp_C + (1 | Pool_ID), data = temp.df )
+summary(mod22)
+r.squaredGLMM(mod22)
+```
+
+Ultimately, the best model includes Pool ID as a random effect, and river temperature as a fixed effect. But -- does the latter make sense as a fixed effect? It improves AIC, sure, but what's the rationale behind including it as one or the other? We have many observations being made at the same time/date, with a shared river temperature. It's similar to a hierachical model in that sense. River temperature here is also only a few samples from a broader range of possible temperatures. 
+
+For now, I will proceed with treating river temperature as a random effect, and see if including Pool ID also helps in the spatially explicit model below. The AIC for that model (model 19) is 989.5.
 
 ## Predicting from the Model
 
@@ -206,18 +243,62 @@ coordinates(temp.df) <- ~long + lat
 bubble(temp.df, "residual")
 ```
 
-I'm not sure how to incorporate this into a GLMM, but this can maybe be done in glmmtmb. Below is a stab at this, using the lat/long coordinates as a covariate structure.
+I'm not sure how to incorporate this into a GLMM, but this can maybe be done in glmmtmb. Below is a stab at this, using the lat/long coordinates as a covariate structure. Included also are some model diagnostics.
 
 ```{r, echo = FALSE}
 temp.df$pos <- numFactor(temp.df$long, temp.df$lat)
 temp.df$group <- factor(rep(1, nrow(temp.df)))
 
 library(sjPlot)
-spatial.glmm <- glmmTMB(MaxWTemp_C ~ logDepth * PctShaded + ( 1 | MaxRTemp_C ) + exp(pos + 0 | group), data = temp.df )
+spatial.glmm <- glmmTMB(MaxWTemp_C ~ logDepth * Pct_Shaded + ( 1 | MaxRTemp_C ) + exp(pos + 0 | group), data = temp.df )
 tab_model(spatial.glmm, show.aic = TRUE, show.loglik = TRUE)
+
+library(DHARMa)
+DHARMa::testDispersion(spatial.glmm)
+DHARMa::testDispersion(spatial.glmm, type="PearsonChisq", 
+         alternative="greater")
+sim.resids <- DHARMa::simulateResiduals(spatial.glmm, 250)
+plot(sim.resids)
+model_performance(spatial.glmm)
+r.squaredGLMM(spatial.glmm)
+
+model_list <- nlist(mod16, mod18, mod19, mod20, mod21, mod22, spatial.glmm)
+aic_table <- aictab(model_list)
+model_vars <- sapply(model_list, function(x) gsub(":", "*", paste(names(x$frame), collapse = " + ")))
+aic_table <- cbind(Modnames = names(model_vars), model_vars) %>%
+  merge(aic_table, by = "Modnames") %>%
+  arrange(AICc)
+aic_table
 ```
 
-Better AIC and a much smaller dispersion estimate, at around 2.17. Let's see how it handles predictions.
+Better AIC and a much smaller dispersion estimate. R2m gives the marginal r^2^, or the proportion of variance explained by fixed effects only. R2c is the conditional r^2^, which incorporates the variance explained by random and fixed effects.
+
+Let's revisit this with pool ID also included as a random effect, and/or river temperature as a fixed effect.
+
+```{r}
+spatial.glmm2 <- glmmTMB(MaxWTemp_C ~ logDepth * Pct_Shaded + ( 1 | MaxRTemp_C ) + ( 1 | Pool_ID ) + exp(pos + 0 | group), data = temp.df )
+tab_model(spatial.glmm2, show.aic = TRUE, show.loglik = TRUE)
+
+spatial.glmm3 <- glmmTMB(MaxWTemp_C ~ logDepth * Pct_Shaded * MaxRTemp_C + ( 1 | Pool_ID ) + exp(pos + 0 | group), data = temp.df )
+tab_model(spatial.glmm3, show.aic = TRUE, show.loglik = TRUE)
+
+model_list <- nlist(mod16, mod18, mod19, mod20, mod21, mod22, spatial.glmm, spatial.glmm2, spatial.glmm3)
+aic_table <- aictab(model_list)
+model_vars <- sapply(model_list, function(x) gsub(":", "*", paste(names(x$frame), collapse = " + ")))
+aic_table <- cbind(Modnames = names(model_vars), model_vars) %>%
+  merge(aic_table, by = "Modnames") %>%
+  arrange(AICc)
+aic_table
+```
+
+The model with river temperature and pool ID as random effects fails to converge. I'm not currently sure why (too many random effects?), but including lat/long improved AIC more than pool ID did, so I think the spatial component may be more important than traits specific to individual pools. 
+
+Technically, model 22 and spatial.glmm3 -- which include pool ID as a random effect and river temperature as a fixed effect -- outperforms the spatially explicit model without pool ID and with river temperature as a fixed effect, but I am still unsure about river temperature as a fixed effect. My intuition says that spatial.glmm is the model to go with, but I will reach out to the others for advice.
+
+
+## Predictions from Spatially-Explicit Models
+
+Let's see how our first spatially explicit GLMM handles predictions.
 
 ```{r, echo = FALSE}
 predict2.df <- prediction(spatial.glmm, data = temp.df, calculate_se = TRUE)
@@ -244,4 +325,56 @@ ggplot(data = predict2.df, aes(y = lat, x = long, colour = fitted)) +
   labs(colour = "Temp (°C)")
 ```
 
-The next step will be to challenge the model (and ourselves) a bit. Can we simulate a day on which the river temperature is 25°C, as an example, and predict temperatures for the whole system? I will need a data set containing pool dimensions and the densiometer data for the full system.
+The next step will be to challenge the model (and ourselves) a bit. Can we simulate a day on which the river temperature is 25°C, as an example, and predict temperatures for the whole system? I will need a data set containing pool dimensions and the densiometer data for the full system. Fortunately, I've made one.
+
+```{r, echo = FALSE}
+testdata.df <- read.csv("abiotic_data_trimmed.csv")
+testdata.df$Pool_ID <- as.factor(testdata.df$Pool_ID)
+testdata.df$MaxRTemp_C <- rep(25, nrow(testdata.df))
+testdata.df$logDepth <- log(testdata.df$Depth_cm)
+testdata.df$Pct_Shaded <- testdata.df$Pct_Shaded/100
+testdata.df$pos <- numFactor(testdata.df$long, testdata.df$lat)
+testdata.df$group <- factor(rep(1, nrow(testdata.df)))
+
+predict3.df <- predict(spatial.glmm, newdata = testdata.df, allow.new.levels = TRUE, se.fit = TRUE)
+predicted.df <- cbind(testdata.df, predict3.df)
+
+ggplot(data = predicted.df, aes(y = lat, x = long, colour = fit)) +
+  geom_point(size = 1.5, fill = "black") + 
+  scale_colour_viridis() + 
+  theme_classic( base_size = 12, base_line_size = 1 ) + 
+  theme(panel.background = element_rect(fill = "black", colour = "black", size = 0.5, linetype = "solid"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        aspect.ratio = 1) +
+  labs(colour = "Temp (°C)")
+
+```
+
+Awesome. Let's make a whole series of figures from this. Issues arose when trying to predict values over a time series. Namely, you can't predict levels of a random effect outside the observed range. So, instead, I am fitting these with glmm3, which includes river temp as a fixed effect. Nvm, glmm3 doesn't even consider river temp a significant predictor. Hmm. We may be lacking inferential power, here, so for now let's just pretty up our plot from what we have.
+
+```{r, eval = FALSE}
+temp_vec <- seq(20, 30, by = 0.5)
+
+for ( i in 1:length( temp_vec ) ){
+  testdata.df$MaxRTemp_C <- rep(temp_vec[i], nrow(testdata.df))
+  predicted.df <- predict(spatial.glmm3, newdata = testdata.df, allow.new.levels = TRUE, se.fit = TRUE)
+  plot.df <- cbind(testdata.df, predicted.df)
+
+temp_plot <- ggplot(data = plot.df, aes(y = lat, x = long, colour = fit)) +
+  geom_point(size = 1.5, fill = "black") + 
+  scale_colour_viridis(limits = c(15,50)) + 
+  theme_classic( base_size = 12, base_line_size = 1 ) + 
+  theme(panel.background = element_rect(fill = "black", colour = "black", size = 0.5, linetype = "solid"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        aspect.ratio = 1) +
+  labs(colour = "Temp (°C)") +
+  annotate( geom = "text", x = -77.4535, y = 37.5272, label = paste(temp_vec[i], "°C"), color = "white", hjust = 1 )
+
+write.csv(plot.df, file = paste0("output_", i, ".csv"))
+ggsave(temp_plot, file=paste0("plot_", i,".png"), width = 14, height = 10, units = "cm")
+}
+
+```
+
