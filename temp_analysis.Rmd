@@ -330,7 +330,7 @@ The next step will be to challenge the model (and ourselves) a bit. Can we simul
 ```{r, echo = FALSE}
 testdata.df <- read.csv("abiotic_data_trimmed.csv")
 testdata.df$Pool_ID <- as.factor(testdata.df$Pool_ID)
-testdata.df$MaxRTemp_C <- rep(25, nrow(testdata.df))
+testdata.df$MaxRTemp_C <- rep(25, nrow(testdata.df)) # It actually doesn't seem to matter what value you put here, because it looks for it but doesn't use it lol
 testdata.df$logDepth <- log(testdata.df$Depth_cm)
 testdata.df$Pct_Shaded <- testdata.df$Pct_Shaded/100
 testdata.df$pos <- numFactor(testdata.df$long, testdata.df$lat)
@@ -339,7 +339,7 @@ testdata.df$group <- factor(rep(1, nrow(testdata.df)))
 predict3.df <- predict(spatial.glmm, newdata = testdata.df, allow.new.levels = TRUE, se.fit = TRUE)
 predicted.df <- cbind(testdata.df, predict3.df)
 
-ggplot(data = predicted.df, aes(y = lat, x = long, colour = fit)) +
+temp_plot <- ggplot(data = predicted.df, aes(y = lat, x = long, colour = fit)) +
   geom_point(size = 1.5, fill = "black") + 
   scale_colour_viridis() + 
   theme_classic( base_size = 12, base_line_size = 1 ) + 
@@ -349,11 +349,14 @@ ggplot(data = predicted.df, aes(y = lat, x = long, colour = fit)) +
         aspect.ratio = 1) +
   labs(colour = "Temp (°C)")
 
+write.csv(predicted.df, file = "output_fullsys.csv")
+ggsave(temp_plot, file = "plot_fullsys.png", width = 14, height = 10, units = "cm")
+
 ```
 
-Awesome. Let's make a whole series of figures from this. Issues arose when trying to predict values over a time series. Namely, you can't predict levels of a random effect outside the observed range. So, instead, I am fitting these with glmm3, which includes river temp as a fixed effect. Nvm, glmm3 doesn't even consider river temp a significant predictor. Hmm. We may be lacking inferential power, here, so for now let's just pretty up our plot from what we have.
+Awesome. The bad news is that we can't predict random effects outside of the levels we've observed. The predictions above are "population-level" estimates, meaning that during the time period we collected data on, that's approximately what each pool's temperature would be on average. This may be the best we can do with the data we have, but I think I am comfortable treating it as an index of relative pool temperature.
 
-```{r, eval = FALSE}
+```{r, eval = FALSE, echo = FALSE}
 temp_vec <- seq(20, 30, by = 0.5)
 
 for ( i in 1:length( temp_vec ) ){
