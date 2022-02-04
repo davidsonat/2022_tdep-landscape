@@ -1,0 +1,70 @@
+---
+title: "Time Series Analysis"
+author: "Andy"
+date: "2/4/2022"
+output: html_document
+---
+
+Out of curiosity, I wanted to know if we could instead model temperature as a time series of river temperature data. This might give us the ability to predict what temperature the pools should be for a given river temperature. Let's first get our data frame together.
+
+```{r, echo = FALSE}
+timeseries.df <- read.csv("temp_timeseries_data.csv")
+timeseries.df$DateTime <- paste(timeseries.df$Date, timeseries.df$Time, sep = " ")
+timeseries.df$DateTime <- strptime(timeseries.df$DateTime, format = c("%m/%d/%Y %H:%M:%OS"), tz = "EST")
+
+rivertemp.df <- read.csv("rivertemp.csv")
+rivertemp.df$DateTime <- paste(rivertemp.df$Date, rivertemp.df$Time, sep = " ")
+rivertemp.df$DateTime <- strptime(rivertemp.df$DateTime, format = c("%m/%d/%Y %H:%M:%OS"), tz = "EST")
+
+rivertime.df <- merge(timeseries.df, rivertemp.df, by = c("DateTime"))
+rivertime.df$Date.x <- NULL
+rivertime.df$Time.x <- NULL
+rivertime.df$Lux <- NULL
+rivertime.df$Date.y <- NULL
+rivertime.df$Time.y <- NULL
+
+abiotic.df <- read.csv("abiotic_data_trimmed.csv")
+abiotic.df$Pool_ID <- as.factor(abiotic.df$Pool_ID)
+abiotic.df$DistRC_m <- as.numeric(abiotic.df$DistRC_m)
+
+rivertime.df$Pool_ID <- as.factor(rivertime.df$Pool_ID)
+
+analysis.df <- merge(rivertime.df, abiotic.df, by = c("Pool_ID"))
+```
+
+Look for patterns in the data...
+
+```{r}
+plot(x = analysis.df$WaterTemp_C, y = analysis.df$RiverTemp_C)
+```
+
+And finally, let's see about building a model using the data.
+
+```{r}
+analysis.df$logDepth <- log(analysis.df$Depth_cm)
+analysis.df$Pct_Shaded <- analysis.df$Pct_Shaded/100
+analysis.df$DateTimeTest <- as.factor(analysis.df$DateTime)
+
+library(glmmTMB)
+library(performance)
+library(MuMIn)
+library(sp)
+library(sjPlot)
+
+analysis.df$pos <- numFactor(analysis.df$long, analysis.df$lat)
+spatiotemp.glmm <- glmmTMB(WaterTemp_C ~ logDepth * Pct_Shaded * RiverTemp_C + exp(pos + 0 | DateTimeTest), data = analysis.df )
+
+tab_model(spatiotemp.glmm, show.aic = TRUE, show.loglik = TRUE)
+
+library(DHARMa)
+DHARMa::testDispersion(spatiotemp.glmm)
+DHARMa::testDispersion(spatiotemp.glmm, type="PearsonChisq", 
+         alternative="greater")
+sim.resids <- DHARMa::simulateResiduals(spatiotemp.glmm, 250)
+plot(sim.resids)
+model_performance(spatiotemp.glmm)
+r.squaredGLMM(spatiotemp.glmm)
+
+```
+
+GOOD LORD LOOK AT THAT AIC.
