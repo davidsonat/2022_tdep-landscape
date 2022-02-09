@@ -10,7 +10,9 @@ output:
 ```{r, echo = FALSE}
 temponly.df <- read.csv("temperature_data.csv")
 abiotic.df <- read.csv("abiotic_data_trimmed.csv")
+slabs.df <- read.csv("slabno.csv")
 temp.df <- merge(temponly.df, abiotic.df)
+temp.df <- merge(temp.df, slabs.df)
 ```
 
 # Histograms
@@ -295,6 +297,16 @@ The model with river temperature and pool ID as random effects fails to converge
 
 Technically, model 22 and spatial.glmm3 -- which include pool ID as a random effect and river temperature as a fixed effect -- outperforms the spatially explicit model without pool ID and with river temperature as a fixed effect, but I am still unsure about river temperature as a fixed effect. My intuition says that spatial.glmm is the model to go with, but I will reach out to the others for advice.
 
+Lastly, let's try simplifying things and instead of using lat/long, let's use a slab-level variable as a random effect. This might allow for more accurate predictions, because we know what the levels of that random effect should be.
+
+```{r}
+temp.df$slab <- as.factor(temp.df$slab)
+slabs.glmm <- glmmTMB(MaxWTemp_C ~ logDepth * Pct_Shaded + ( 1 | Date) + ( 1 | slab), data = temp.df )
+tab_model(slabs.glmm, show.aic = TRUE, show.loglik = TRUE)
+```
+
+Nope, this doesn't even really improve marginal r^2^.
+
 
 ## Predictions from Spatially-Explicit Models
 
@@ -351,30 +363,24 @@ ggplot(data = predicted.df, aes(y = lat, x = long, colour = fit)) +
 
 ```
 
-Awesome. Let's make a whole series of figures from this. Issues arose when trying to predict values over a time series. Namely, you can't predict levels of a random effect outside the observed range. So, instead, I am fitting these with glmm3, which includes river temp as a fixed effect. Nvm, glmm3 doesn't even consider river temp a significant predictor. Hmm. We may be lacking inferential power, here, so for now let's just pretty up our plot from what we have.
+Awesome. Lastly, let's convert these temperature estimates into a standardized z-score that measures how relatively "hot" a pool gets.
 
-```{r, eval = FALSE}
-temp_vec <- seq(20, 30, by = 0.5)
+```{r, echo = FALSE}
+predicted.df$z_score <- (predicted.df$fit - mean(predicted.df$fit))/sd(predicted.df$fit)
 
-for ( i in 1:length( temp_vec ) ){
-  testdata.df$MaxRTemp_C <- rep(temp_vec[i], nrow(testdata.df))
-  predicted.df <- predict(spatial.glmm3, newdata = testdata.df, allow.new.levels = TRUE, se.fit = TRUE)
-  plot.df <- cbind(testdata.df, predicted.df)
+predicted.df$DistRC_m <- NULL
+predicted.df$SurfArea_cm2 <- NULL
+predicted.df$Volume_cm3 <- NULL
+predicted.df$Notes <- NULL
+predicted.df$MaxRTemp_C <- NULL
+predicted.df$pos <- NULL
+predicted.df$group <- NULL
+predicted.df$logDepth <- NULL
 
-temp_plot <- ggplot(data = plot.df, aes(y = lat, x = long, colour = fit)) +
-  geom_point(size = 1.5, fill = "black") + 
-  scale_colour_viridis(limits = c(15,50)) + 
-  theme_classic( base_size = 12, base_line_size = 1 ) + 
-  theme(panel.background = element_rect(fill = "black", colour = "black", size = 0.5, linetype = "solid"),
-        panel.grid.major = element_blank(),
-        panel.grid.minor = element_blank(),
-        aspect.ratio = 1) +
-  labs(colour = "Temp (°C)") +
-  annotate( geom = "text", x = -77.4535, y = 37.5272, label = paste(temp_vec[i], "°C"), color = "white", hjust = 1 )
+colnames(predicted.df) <- c("Pool_ID", "lat", "long", "Depth_cm", "Pct_Shaded", "Temp_Predicted_C","Temp_StdErr", "Temp_Zscore")
 
-write.csv(plot.df, file = paste0("output_", i, ".csv"))
-ggsave(temp_plot, file=paste0("plot_", i,".png"), width = 14, height = 10, units = "cm")
-}
+hist(predicted.df$Temp_Zscore)
 
+write.csv(predicted.df, "temp_predictions.csv", row.names = FALSE)
 ```
 
