@@ -366,17 +366,11 @@ ggsave(temp_plot, file = "plot_fullsys.png", width = 14, height = 10, units = "c
 
 ```
 
-<<<<<<< HEAD
+
 Awesome. Lastly, let's convert these temperature estimates into a standardized z-score that measures how relatively "hot" a pool gets.
 
 ```{r, echo = FALSE}
 predicted.df$z_score <- (predicted.df$fit - mean(predicted.df$fit))/sd(predicted.df$fit)
-=======
-Awesome. The bad news is that we can't predict random effects outside of the levels we've observed. The predictions above are "population-level" estimates, meaning that during the time period we collected data on, that's approximately what each pool's temperature would be on average. This may be the best we can do with the data we have, but I think I am comfortable treating it as an index of relative pool temperature.
-
-```{r, eval = FALSE, echo = FALSE}
-temp_vec <- seq(20, 30, by = 0.5)
->>>>>>> 117ab8ba7cda0b9ed291abd6d2add6b72064c90d
 
 predicted.df$DistRC_m <- NULL
 predicted.df$SurfArea_cm2 <- NULL
