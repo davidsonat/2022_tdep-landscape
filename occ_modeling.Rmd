@@ -1,0 +1,67 @@
+---
+title: "Occupancy Models"
+author: "Andy"
+date: "2/15/2022"
+output: html_document
+---
+
+Now that we have a working temperature model, let's play with occupancy models. First issue will be to determine detection probability for our two taxa of interest, dragonflies and mosquitoes. Note that these data are fairly preliminary, and I need to get the full set from Josh before proceeding with this analysis.
+
+```{r}
+library(unmarked)
+
+occupancy.df <- read.csv("unmarked.csv")
+occupancy.df$Pool_ID <- as.factor(occupancy.df$ï..Pool_ID)
+occupancy.df$ï..Pool_ID <- NULL
+occupancy.df$a_mosq <- as.numeric(occupancy.df$a_mosq)
+occupancy.df$b_mosq <- as.numeric(occupancy.df$b_mosq)
+occupancy.df$c_mosq <- as.numeric(occupancy.df$c_mosq)
+occupancy.df$d_mosq <- as.numeric(occupancy.df$d_mosq)
+
+abiotic.df <- read.csv("temp_predictions.csv")
+occupancy.df <- merge(occupancy.df, abiotic.df)
+
+## Detection estimate from back of the napkin math:
+# Num. of pools resampled = 83
+# Mosquitoes: Num. of true negatives = 38, Num. of positives = 45; prob. of detection = 0.809, i.e., false negative rate = ~0.2
+# Dragonflies: Num. of true negatives = 77, Num. of positives = 6; prob. of detection = 0.6, i.e., false negative rate = 0.4
+
+
+# Testing how to format data for unmarked:
+umf.df <- unmarkedFrameOccu(y = occupancy.df[,c("a_mosq","b_mosq","c_mosq","d_mosq")], siteCovs = as.data.frame(scale(occupancy.df[,c("Temp_Predicted_C")])))
+summary(umf.df)
+
+
+mod1 <- occu(formula = ~ 1 ~ 1,
+             data = umf.df)
+
+
+summary(mod1)
+
+exp(1.4)/(1+exp(1.4))
+
+# So, this gets us a detection probability estimate (0.802) and a site-level estimate of occupancy (0.551) from our replicated subset of the data, but doesn't work (isn't in the right format) going forward.
+```
+
+
+
+```{r}
+library(tidyr)
+occ_full.df <- read.csv("occupancy_data_test.csv")
+occ_full.df$Pool_ID <- as.factor(occ_full.df$ï..Pool_ID)
+occ_full.df$ï..Pool_ID <- NULL
+
+test.df <- pivot_wider(occ_full.df, names_from = c("Date"), values_from = c("Mosquito"))
+test.df$Dragonfly <- NULL
+
+abiotic_occ.df <- merge(test.df, abiotic.df)
+umf.df <- unmarkedFrameOccu(y = abiotic_occ.df[,2:4], siteCovs = as.data.frame(scale(abiotic_occ.df[,c("Temp_Predicted_C")])))
+
+mod2 <- occu(formula = ~ 1 ~ V1,
+             data = umf.df)
+
+summary(mod2)
+
+# This sort of works, but doesn't allow me to specify detection probability based on what was calculated above.
+```
+
