@@ -5,24 +5,45 @@ date: "2/15/2022"
 output: html_document
 ---
 
-Now that we have a working temperature model, let's play with occupancy models. First issue will be to determine detection probability for our two taxa of interest, dragonflies and mosquitoes. Note that these data are fairly preliminary, and I need to get the full set from Josh before proceeding with this analysis.
+Now that we have a working temperature model, let's play with occupancy models. First issue will be to determine detection probability for our two taxa of interest, dragonflies and mosquitoes.
 
 
-```{r}
+```{r, echo = FALSE}
 library(unmarked)
+library(AICcmodavg)
 occupancy.df <- read.csv("occ2021_reformat.csv")
 occupancy.df <- occupancy.df[rowSums(is.na(occupancy.df[,3:10])) != 8, ]
 occupancy.df$Pool_ID <- as.factor(occupancy.df$ï..Pool_ID)
 occupancy.df$ï..Pool_ID <- NULL
 occupancy.df$JulianDate <- as.factor(occupancy.df$JulianDate)
 
-# Testing how to format data for unmarked:
-# I can't get it to behave for multiple sampling dates. OccuMulti seems to be designed for a single sampling event, wherein each site is sampled up to J times.
+# Get data merged and ready for unmarked:
 abiotic.df <- read.csv("temp_predictions.csv")
-occupancy.df <- merge(occupancy.df, abiotic.df)
+abiotic.df$Pool_ID <- as.factor(abiotic.df$Pool_ID)
+abiotic2.df <- read.csv("abiotic_data.csv")
+abiotic2.df$Pool_ID <- as.factor(abiotic2.df$Pool_ID)
+occupancy.df <- merge(occupancy.df, abiotic.df, by.x = "Pool_ID", by.y = "Pool_ID")
+occupancy.df <- merge(occupancy.df, abiotic2.df, by.x = "Pool_ID", by.y = "Pool_ID")
+occupancy.df$Notes <- NULL
+occupancy.df$Pct_Shaded.y <- NULL
+occupancy.df$Depth_cm.y <- NULL
+occupancy.df$lat.x <- NULL
+occupancy.df$long.x <- NULL
+occupancy.df$lat.y <- NULL
+occupancy.df$long.y <- NULL
+occupancy.df$DistRC_m <- as.numeric(occupancy.df$DistRC_m)
+occupancy.df$SurfArea_cm2 <- as.numeric(occupancy.df$SurfArea_cm2)
+occupancy.df$Volume_cm3 <- as.numeric(occupancy.df$Volume_cm3)
+names(occupancy.df)[names(occupancy.df) == 'Depth_cm.x'] <- 'Depth_cm'
+names(occupancy.df)[names(occupancy.df) == 'Pct_Shaded.x'] <- 'Pct_Shaded'
+occupancy.df <- occupancy.df[-c(1371:1390),] # Dropping these for now because they don't have dist to river channel
+occupancy.df$logSurfArea <- log(occupancy.df$SurfArea_cm2)
+occupancy.df$logDepth <- log(occupancy.df$Depth_cm)
+occupancy.df$logVol <- log(occupancy.df$Volume_cm3)
+
 
 # Grabbing pool level covariates
-siteCovs <- as.data.frame(occupancy.df[c(1:2, 11:17)])
+siteCovs <- as.data.frame(occupancy.df[c(1:2, 11:21)])
 
 # Specify matrices of occ data, then make it into an unmarked dataframe
 sp1 <- as.matrix(occupancy.df[c(3:6)])
@@ -31,49 +52,847 @@ sp2 <- as.matrix(occupancy.df[c(7:10)])
 y <- list(sp1, sp2)
 
 umf <- unmarkedFrameOccuMulti(y = y, siteCovs = siteCovs, obsCovs = NULL)
-summary(umf) 
+```
 
+```{r, echo = FALSE, warning = FALSE}
+# According to Josh, Julian date can be considered a detection covariate, because abundance of either spp. probably varies in time, and that could affect our ability to detect them
+# Including volume, depth, and shading seems redundant with other variables here, so let's start without them
+cand.models <- list()
 
-# I'm not sure if these covariates are in the right place. Should date and Pool ID be state-level covariates, and detection constant (~1)?
-stateformulas <- c('~Temp_Zscore + Pool_ID', '~Temp_Zscore + Pool_ID', '~Temp_Zscore + Pool_ID')
-detformulas <- c('~1', '~1')
+stateformulas <- c('~Temp_Zscore + DistRC_m + logSurfArea', '~Temp_Zscore + DistRC_m + logSurfArea', '~Temp_Zscore + DistRC_m + logSurfArea')
+detformulas <- c('~JulianDate', '~JulianDate')
 
-mod1 <- occuMulti(stateformulas = stateformulas,
+cand.models[[1]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+```
+
+```{r, echo = FALSE, warning = FALSE}
+## Drop terms from mosquito model only
+# Drop temperature
+stateformulas <- c('~DistRC_m + logSurfArea', '~Temp_Zscore + DistRC_m + logSurfArea', '~Temp_Zscore + DistRC_m + logSurfArea')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[2]] <- occuMulti(stateformulas = stateformulas,
                   detformulas = detformulas,
              data = umf,
              se = TRUE)
 
+# Drop surface area
+stateformulas <- c('~Temp_Zscore + DistRC_m', '~Temp_Zscore + DistRC_m + logSurfArea', '~Temp_Zscore + DistRC_m + logSurfArea')
+detformulas <- c('~JulianDate', '~JulianDate')
 
-summary(mod1)
+cand.models[[3]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
 
+# Drop dist to river channel
+stateformulas <- c('~Temp_Zscore + logSurfArea', '~Temp_Zscore + DistRC_m + logSurfArea', '~Temp_Zscore + DistRC_m + logSurfArea')
+detformulas <- c('~JulianDate', '~JulianDate')
 
+cand.models[[4]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
 
+# Drop temperature AND surface area
+stateformulas <- c('~DistRC_m', '~Temp_Zscore + DistRC_m + logSurfArea', '~Temp_Zscore + DistRC_m + logSurfArea')
+detformulas <- c('~JulianDate', '~JulianDate')
 
-# Need to get with Josh and ask about how to include Pool_ID or date and account for non-independent data points
-# This is also the simplest possible model, and could perhaps be more informative with some other pool abiotic variables. Surface area, dist. to river channel, canopy?
+cand.models[[5]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop temperature AND dist to river channel
+stateformulas <- c('~logSurfArea', '~Temp_Zscore + DistRC_m + logSurfArea', '~Temp_Zscore + DistRC_m + logSurfArea')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[6]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop dist to river channel AND surface area
+stateformulas <- c('~Temp_Zscore', '~Temp_Zscore + DistRC_m + logSurfArea', '~Temp_Zscore + DistRC_m + logSurfArea')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[7]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop all three
+stateformulas <- c('~1', '~Temp_Zscore + DistRC_m + logSurfArea', '~Temp_Zscore + DistRC_m + logSurfArea')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[8]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+```
+
+```{r, echo = FALSE, warning = FALSE}
+## Drop terms from dragonfly model only
+# Drop temperature
+stateformulas <- c('~Temp_Zscore + DistRC_m + logSurfArea', '~DistRC_m + logSurfArea', '~Temp_Zscore + DistRC_m + logSurfArea')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[9]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop surface area
+stateformulas <- c('~Temp_Zscore + DistRC_m + logSurfArea', '~Temp_Zscore + DistRC_m', '~Temp_Zscore + DistRC_m + logSurfArea')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[10]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop dist to river channel
+stateformulas <- c('~Temp_Zscore + DistRC_m + logSurfArea', '~Temp_Zscore + logSurfArea', '~Temp_Zscore + DistRC_m + logSurfArea')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[11]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop temperature AND surface area
+stateformulas <- c('~Temp_Zscore + DistRC_m + logSurfArea', '~DistRC_m', '~Temp_Zscore + DistRC_m + logSurfArea')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[12]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop temperature AND dist to river channel
+stateformulas <- c('~Temp_Zscore + DistRC_m + logSurfArea', '~Temp_Zscore', '~Temp_Zscore + DistRC_m + logSurfArea')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[13]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop dist to river channel AND surface area
+stateformulas <- c('~Temp_Zscore + DistRC_m + logSurfArea', '~logSurfArea', '~Temp_Zscore + DistRC_m + logSurfArea')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[14]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop all three
+stateformulas <- c('~Temp_Zscore + DistRC_m + logSurfArea', '~1', '~Temp_Zscore + DistRC_m + logSurfArea')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[15]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+```
+
+```{r, echo = FALSE, warning = FALSE}
+## Drop terms from overlap model only
+# Drop temperature
+stateformulas <- c('~Temp_Zscore + DistRC_m + logSurfArea', '~Temp_Zscore + DistRC_m + logSurfArea', '~DistRC_m + logSurfArea')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[16]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop surface area
+stateformulas <- c('~Temp_Zscore + DistRC_m + logSurfArea', '~Temp_Zscore + DistRC_m + logSurfArea', '~Temp_Zscore + DistRC_m')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[17]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop dist to river channel
+stateformulas <- c('~Temp_Zscore + DistRC_m + logSurfArea', '~Temp_Zscore + DistRC_m + logSurfArea', '~Temp_Zscore + logSurfArea')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[18]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop temperature AND surface area
+stateformulas <- c('~Temp_Zscore + DistRC_m + logSurfArea', '~Temp_Zscore + DistRC_m + logSurfArea', '~DistRC_m')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[19]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop temperature AND dist to river channel
+stateformulas <- c('~Temp_Zscore + DistRC_m + logSurfArea', '~Temp_Zscore + DistRC_m + logSurfArea', '~logSurfArea')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[20]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop dist to river channel AND surface area
+stateformulas <- c('~Temp_Zscore + DistRC_m + logSurfArea', '~Temp_Zscore + DistRC_m + logSurfArea', '~Temp_Zscore')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[21]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop all three
+stateformulas <- c('~Temp_Zscore + DistRC_m + logSurfArea', '~Temp_Zscore + DistRC_m + logSurfArea', '~1')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[22]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+```
+
+```{r, echo = FALSE, warning = FALSE}
+## Drop terms from mosquito AND dragonfly model
+# Drop temperature from both
+stateformulas <- c('~DistRC_m + logSurfArea', '~DistRC_m + logSurfArea', '~Temp_Zscore + DistRC_m + logSurfArea')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[23]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop surface area from both
+stateformulas <- c('~Temp_Zscore + DistRC_m', '~Temp_Zscore + DistRC_m', '~Temp_Zscore + DistRC_m + logSurfArea')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[24]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop dist to river channel from both
+stateformulas <- c('~Temp_Zscore + logSurfArea', '~Temp_Zscore + logSurfArea', '~Temp_Zscore + DistRC_m + logSurfArea')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[25]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop temperature from mosq, surf area from dfly
+stateformulas <- c('~DistRC_m + logSurfArea', '~Temp_Zscore + DistRC_m', '~Temp_Zscore + DistRC_m + logSurfArea')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[26]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop temperature from mosq, dist to rc from dfly
+stateformulas <- c('~DistRC_m + logSurfArea', '~Temp_Zscore + logSurfArea', '~Temp_Zscore + DistRC_m + logSurfArea')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[27]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop surface area from mosq, temperature from dfly
+stateformulas <- c('~Temp_Zscore + DistRC_m', '~DistRC_m + logSurfArea', '~Temp_Zscore + DistRC_m + logSurfArea')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[28]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop surface area from mosq, dist to rc from dfly
+stateformulas <- c('~Temp_Zscore + DistRC_m', '~Temp_Zscore + logSurfArea', '~Temp_Zscore + DistRC_m + logSurfArea')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[29]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop dist to rc from mosq, temperature from dfly
+stateformulas <- c('~Temp_Zscore + logSurfArea', '~DistRC_m + logSurfArea', '~Temp_Zscore + DistRC_m + logSurfArea')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[30]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop dist to rc from mosq, surf area from dfly
+stateformulas <- c('~Temp_Zscore + logSurfArea', '~Temp_Zscore + DistRC_m', '~Temp_Zscore + DistRC_m + logSurfArea')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[31]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop temperature AND surface area from both
+stateformulas <- c('~DistRC_m', '~DistRC_m', '~Temp_Zscore + DistRC_m + logSurfArea')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[32]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop temperature AND dist to river channel from both
+stateformulas <- c('~logSurfArea', '~logSurfArea', '~Temp_Zscore + DistRC_m + logSurfArea')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[33]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop dist to river channel AND surface area from both
+stateformulas <- c('~Temp_Zscore', '~Temp_Zscore', '~Temp_Zscore + DistRC_m + logSurfArea')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[34]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop temperature AND surface area from mosq; temperature AND dist to river channel from dfly
+stateformulas <- c('~DistRC_m', '~logSurfArea', '~Temp_Zscore + DistRC_m + logSurfArea')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[35]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop temperature AND surface area from mosq; dist to river channel AND surface area from dfly
+stateformulas <- c('~DistRC_m', '~Temp_Zscore', '~Temp_Zscore + DistRC_m + logSurfArea')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[36]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop temperature AND dist to river channel from mosq; temperature AND surface area from dfly
+stateformulas <- c('~logSurfArea', '~DistRC_m', '~Temp_Zscore + DistRC_m + logSurfArea')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[37]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop temperature AND dist to river channel from mosq; temperature AND dist to river channel from dfly
+stateformulas <- c('~logSurfArea', '~logSurfArea', '~Temp_Zscore + DistRC_m + logSurfArea')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[38]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop dist to river channel AND surface area from mosq; temperature AND surface area from dfly
+stateformulas <- c('~Temp_Zscore', '~DistRC_m', '~Temp_Zscore + DistRC_m + logSurfArea')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[39]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop dist to river channel AND surface area from mosq; dist to river channel AND surface area from dfly
+stateformulas <- c('~Temp_Zscore', '~Temp_Zscore', '~Temp_Zscore + DistRC_m + logSurfArea')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[40]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop all three
+stateformulas <- c('~1', '~1', '~Temp_Zscore + DistRC_m + logSurfArea')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[41]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+```
+
+```{r, echo = FALSE, warning = FALSE}
+## Drop terms from mosquito AND overlap model
+# Drop temperature
+stateformulas <- c('~DistRC_m + logSurfArea', '~Temp_Zscore + DistRC_m + logSurfArea', '~DistRC_m + logSurfArea')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[42]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop surface area
+stateformulas <- c('~Temp_Zscore + DistRC_m', '~Temp_Zscore + DistRC_m + logSurfArea', '~Temp_Zscore + DistRC_m')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[43]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop dist to river channel
+stateformulas <- c('~Temp_Zscore + logSurfArea', '~Temp_Zscore + DistRC_m + logSurfArea', '~Temp_Zscore + logSurfArea')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[44]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop temperature AND surface area
+stateformulas <- c('~DistRC_m', '~Temp_Zscore + DistRC_m + logSurfArea', '~DistRC_m')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[45]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop temperature AND dist to river channel
+stateformulas <- c('~logSurfArea', '~Temp_Zscore + DistRC_m + logSurfArea', '~logSurfArea')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[46]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop dist to river channel AND surface area
+stateformulas <- c('~Temp_Zscore', '~Temp_Zscore + DistRC_m + logSurfArea', '~Temp_Zscore')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[47]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop temperature from mosq, surf area from overlap
+stateformulas <- c('~DistRC_m + logSurfArea', '~Temp_Zscore + DistRC_m + logSurfArea', '~Temp_Zscore + DistRC_m')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[48]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop temperature from mosq, dist to rc from overlap
+stateformulas <- c('~DistRC_m + logSurfArea', '~Temp_Zscore + DistRC_m + logSurfArea', '~Temp_Zscore + logSurfArea')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[49]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop surface area from mosq, temperature from overlap
+stateformulas <- c('~Temp_Zscore + DistRC_m', '~Temp_Zscore + DistRC_m + logSurfArea', '~DistRC_m + logSurfArea')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[50]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop surface area from mosq, dist to rc from overlap
+stateformulas <- c('~Temp_Zscore + DistRC_m', '~Temp_Zscore + DistRC_m + logSurfArea', '~Temp_Zscore + logSurfArea')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[51]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop dist to rc from mosq, temperature from overlap
+stateformulas <- c('~Temp_Zscore + logSurfArea', '~Temp_Zscore + DistRC_m + logSurfArea', '~DistRC_m + logSurfArea')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[52]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop dist to rc from mosq, surf area from overlap
+stateformulas <- c('~Temp_Zscore + logSurfArea', '~Temp_Zscore + DistRC_m + logSurfArea', '~Temp_Zscore + DistRC_m')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[53]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop temperature AND surface area from mosq; temperature AND dist to river channel from overlap
+stateformulas <- c('~DistRC_m', '~Temp_Zscore + DistRC_m + logSurfArea', '~logSurfArea')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[54]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop temperature AND surface area from mosq; dist to river channel AND surface area from overlap
+stateformulas <- c('~DistRC_m', '~Temp_Zscore + DistRC_m + logSurfArea', '~Temp_Zscore')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[55]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop temperature AND dist to river channel from mosq; temperature AND surface area from overlap
+stateformulas <- c('~logSurfArea', '~Temp_Zscore + DistRC_m + logSurfArea', '~DistRC_m')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[56]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop temperature AND dist to river channel from mosq; temperature AND dist to river channel from overlap
+stateformulas <- c('~logSurfArea', '~Temp_Zscore + DistRC_m + logSurfArea', '~logSurfArea')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[57]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop dist to river channel AND surface area from mosq; temperature AND surface area from overlap
+stateformulas <- c('~Temp_Zscore', '~Temp_Zscore + DistRC_m + logSurfArea', '~DistRC_m')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[58]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop dist to river channel AND surface area from mosq; dist to river channel AND surface area from overlap
+stateformulas <- c('~Temp_Zscore', '~Temp_Zscore + DistRC_m + logSurfArea', '~Temp_Zscore')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[59]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop all three
+stateformulas <- c('~1', '~Temp_Zscore + DistRC_m + logSurfArea', '~1')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[60]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+```
+
+```{r, echo = FALSE, warning = FALSE}
+## Drop terms from dragonfly AND overlap model
+# Drop temperature
+stateformulas <- c('~Temp_Zscore + DistRC_m + logSurfArea', '~DistRC_m + logSurfArea', '~DistRC_m + logSurfArea')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[61]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop surface area
+stateformulas <- c('~Temp_Zscore + DistRC_m + logSurfArea', '~Temp_Zscore + DistRC_m', '~Temp_Zscore + DistRC_m')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[62]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop dist to river channel
+stateformulas <- c('~Temp_Zscore +  DistRC_m + logSurfArea', '~Temp_Zscore + logSurfArea', '~Temp_Zscore + logSurfArea')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[63]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop temperature AND surface area
+stateformulas <- c('~DistRC_m', '~Temp_Zscore + DistRC_m + logSurfArea', '~DistRC_m')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[64]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop temperature AND dist to river channel
+stateformulas <- c('~Temp_Zscore + DistRC_m + logSurfArea', '~logSurfArea', '~logSurfArea')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[65]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop dist to river channel AND surface area
+stateformulas <- c('~Temp_Zscore + DistRC_m + logSurfArea', '~Temp_Zscore', '~Temp_Zscore')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[66]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop temperature from dfly, surf area from overlap
+stateformulas <- c('~Temp_Zscore + DistRC_m + logSurfArea', '~DistRC_m + logSurfArea', '~Temp_Zscore + DistRC_m')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[67]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop temperature from dfly, dist to rc from overlap
+stateformulas <- c('~Temp_Zscore + DistRC_m + logSurfArea', '~DistRC_m + logSurfArea', '~Temp_Zscore + logSurfArea')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[68]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop surface area from dfly, temperature from overlap
+stateformulas <- c('~Temp_Zscore + DistRC_m + logSurfArea', '~Temp_Zscore + DistRC_m', '~DistRC_m + logSurfArea')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[69]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop surface area from dfly, dist to rc from overlap
+stateformulas <- c('~Temp_Zscore + DistRC_m + logSurfArea', '~Temp_Zscore + DistRC_m', '~Temp_Zscore + logSurfArea')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[70]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop dist to rc from dfly, temperature from overlap
+stateformulas <- c('~Temp_Zscore + DistRC_m + logSurfArea', '~Temp_Zscore + logSurfArea', '~DistRC_m + logSurfArea')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[71]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop dist to rc from dfly, surf area from overlap
+stateformulas <- c('~Temp_Zscore + DistRC_m + logSurfArea', '~Temp_Zscore + logSurfArea', '~Temp_Zscore + DistRC_m')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[72]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop temperature AND surface area from dfly; temperature AND dist to river channel from overlap
+stateformulas <- c('~Temp_Zscore + DistRC_m + logSurfArea', '~DistRC_m', '~logSurfArea')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[73]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop temperature AND surface area from dfly; dist to river channel AND surface area from overlap
+stateformulas <- c('~Temp_Zscore + DistRC_m + logSurfArea', '~DistRC_m', '~Temp_Zscore')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[74]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop temperature AND dist to river channel from dfly; temperature AND surface area from overlap
+stateformulas <- c('~Temp_Zscore + DistRC_m + logSurfArea', '~logSurfArea', '~DistRC_m')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[75]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop temperature AND dist to river channel from dfly; temperature AND dist to river channel from overlap
+stateformulas <- c('~Temp_Zscore + DistRC_m + logSurfArea', '~logSurfArea', '~logSurfArea')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[76]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop dist to river channel AND surface area from dfly; temperature AND surface area from overlap
+stateformulas <- c('~Temp_Zscore + DistRC_m + logSurfArea', '~Temp_Zscore', '~DistRC_m')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[77]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop dist to river channel AND surface area from dfly; dist to river channel AND surface area from overlap
+stateformulas <- c('~Temp_Zscore + DistRC_m + logSurfArea', '~Temp_Zscore', '~Temp_Zscore')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[78]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop all three
+stateformulas <- c('~Temp_Zscore + DistRC_m + logSurfArea', '~1', '~1')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[79]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+```
+
+```{r, echo = FALSE, warning = FALSE}
+## Drop terms from all three
+# Drop temperature
+stateformulas <- c('~DistRC_m + logSurfArea', '~DistRC_m + logSurfArea', '~DistRC_m + logSurfArea')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[80]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop surface area
+stateformulas <- c('~Temp_Zscore + DistRC_m', '~Temp_Zscore + DistRC_m', '~Temp_Zscore + DistRC_m')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[81]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop dist to river channel
+stateformulas <- c('~Temp_Zscore + logSurfArea', '~Temp_Zscore + logSurfArea', '~Temp_Zscore + logSurfArea')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[82]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop temperature AND surface area
+stateformulas <- c('~DistRC_m', '~DistRC_m', '~DistRC_m')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[83]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop temperature AND dist to river channel
+stateformulas <- c('~logSurfArea', '~logSurfArea', '~logSurfArea')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+cand.models[[84]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+# Drop dist to river channel AND surface area
 stateformulas <- c('~Temp_Zscore', '~Temp_Zscore', '~Temp_Zscore')
 detformulas <- c('~JulianDate', '~JulianDate')
 
-mod2 <- occuMulti(stateformulas = stateformulas,
+cand.models[[85]] <- occuMulti(stateformulas = stateformulas,
                   detformulas = detformulas,
              data = umf,
-             se = TRUE,
-             control = list(trace = TRUE))
+             se = TRUE)
+```
 
-summary(mod2)
+```{r}
+## Still missing models with combos of ~1 for some models but not others, e.g.
+stateformulas <- c('~Temp_Zscore', '~Temp_Zscore', '~1')
+detformulas <- c('~JulianDate', '~JulianDate')
 
-predicted.fit <- predict(mod2, type='state')
+cand.models[[86]] <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+## Compare models
+mod.names <- paste("mod", 1:length(cand.models), sep = " " )
+aictab(cand.set = cand.models, modnames = mod.names, sort = TRUE)
+```
+
+```{r}
+## Top performing models:
+summary(cand.models[[74]]) # For mosquitoes: n.s. but positive effect of temperature, negative effect of surface area. For dragons: negative effect of dist. to RC. For both: none.
+summary(cand.models[[73]]) # Ditto.
+summary(cand.models[[80]]) # And this one didn't converge, so idk why it's even here.
+
+
+# How do the models that include the above variables + temperature fare? I actually think we may be missing some cross combinations, so let's write one.
+stateformulas <- c('~Temp_Zscore * logSurfArea', '~DistRC_m', '~1')
+detformulas <- c('~JulianDate', '~JulianDate')
+
+mod.posthoc <- occuMulti(stateformulas = stateformulas,
+                  detformulas = detformulas,
+             data = umf,
+             se = TRUE)
+
+summary(mod.posthoc) # Scores within dAIC of 2; same pattern with the variables as above. 
+```
+
+```{r, eval = FALSE, echo = FALSE}
+predicted.fit <- predict(mod.posthoc, type='state')
 predicted.vals <- as.data.frame(predicted.fit[1])
 predicted.vals <- cbind(predicted.vals, siteCovs)
-plot(x = predicted.vals$Temp_Zscore, y = predicted.vals$Predicted.psi.10.)
+plot(x = predicted.vals$Temp_Predicted_C, y = predicted.vals$Predicted.psi.10.)
 plot(x = predicted.vals$Temp_Zscore, y = predicted.vals$Predicted.psi.01.)
 
 # What's mean occupancy of all three states?
-mean(predicted.vals$Predicted.psi.10.) # 51.3% chance a pool had mosquitoes. Whoa! Predicted well by temperature (+ correlation).
-mean(predicted.vals$Predicted.psi.01.) # Only a 17.0% chance of dragons. Not predicted by temperature.
-mean(predicted.vals$Predicted.psi.11.) # Only 3.0% chance of both co-occurring. Also not predicted by temperature. This is a third of what would be expected based on random chance from the above probabilities (9%). 
-# How would one directly analyze that? Some variety of goodness of fit test? See also Rota et al. 2016.
+mean(predicted.vals$Predicted.psi.10.) # 50.0% chance a pool had mosquitoes. Whoa!
+mean(predicted.vals$Predicted.psi.01.) # Only a 16.2% chance of dragons.
+mean(predicted.vals$Predicted.psi.11.) # Only 3.4% chance of both co-occurring. This is less than half of what would be expected based on random chance from the above probabilities (~8.1%). 
+# How would one directly analyze that? Some variety of goodness of fit test, like a chi-squared? See also Rota et al. 2016.
 # Ask Josh also how he makes his figures.
 
-# So if this model is correct, dragons go wherever in the landscape regardless of temperature, while mosquitoes seem to prefer warmer pools. The presence of dragons reduces the likelihood of mosquitoes being present.
+# So if this model is correct, dragons go wherever in the landscape regardless of temperature but may prefer pools closer to the river channel, while mosquitoes seem to prefer warmer, smaller pools. The presence of dragons reduces the likelihood of mosquitoes being present.
 ```
