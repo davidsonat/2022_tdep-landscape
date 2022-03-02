@@ -5,8 +5,9 @@ date: "2/15/2022"
 output: html_document
 ---
 
-Now that we have a working temperature model, let's play with occupancy models. First issue will be to determine detection probability for our two taxa of interest, dragonflies and mosquitoes.
+# Exploring Mosquito and Dragonfly Occupancy
 
+Now that we have a working temperature model, let's play with occupancy models. First issue will be to determine detection probability for our two taxa of interest, dragonflies and mosquitoes.
 
 ```{r, echo = FALSE}
 library(unmarked)
@@ -44,23 +45,30 @@ occupancy.df$logVol <- log(occupancy.df$Volume_cm3)
 library(GGally)
 pairs.df <- subset(occupancy.df, select = c("mosq_a", "dfly_a", "logDepth", "Pct_Shaded", "logSurfArea", "Temp_Zscore", "DistRC_m", "logVol")) 
 ggpairs(data = pairs.df)
-# Mosquitoes correlate with volume, surface area, depth, and temperature
-# Dragons correlate with volume, surface area, depth, dist to river channel, and shading
+```
 
-# Some of these variables overlap and/or are collinear, especially the dimensions
-# Shading correlates with both distance to river channel and temperature, so let's drop it
-# From the perspective of aerial colonizers, surface area is likely to be more important than depth or volume, so let's drop both
-# Problem is that surface area is also correlated with temperature here... hmm. Maybe that's why the interaction term works.
+Mosquito occurrence correlates with pool volume, surface area, depth, and temperature. Meanwhile, dragonfly occurrence correlates with volume, surface area, depth, dist to river channel, and shading
 
-# So, that leaves us with mosquitoes as a function of surface area and temperature, and dragons as a function of surface area and distance to RC
+Some of these variables overlap and/or are collinear, especially the dimensions. So, let's narrow down our variables. Shading correlates with both distance to river channel and temperature, so let's drop it. From the perspective of aerial colonizers, surface area is likely to be more important than depth or volume, so let's drop both.
 
-occupancy.df <- subset(occupancy.df, select = c("Pool_ID", "JulianDate", "mosq_a", "mosq_b", "mosq_c", "mosq_d", "dfly_a", "dfly_b", "dfly_c", "dfly_d", "Temp_Zscore", "Temp_Predicted_C", "Temp_StdErr", "DistRC_m", "logSurfArea"))
+One caveat -- surface area is also correlated with temperature here... hmm. Maybe that's why the interaction term works.
+
+So, that leaves us with mosquitoes as a function of surface area and temperature, and dragons as a function of surface area and distance to RC. Let's Z-score standardize these as well.
+
+```{r, echo = FALSE}
+names(occupancy.df)[names(occupancy.df) == 'Temp_Zscore'] <- 'Temp_Z'
+occupancy.df$DistRC_Z <- (occupancy.df$DistRC_m - mean(occupancy.df$DistRC_m))/sd(occupancy.df$DistRC_m)
+occupancy.df$SurfArea_Z <- (occupancy.df$SurfArea_cm2 - mean(occupancy.df$SurfArea_cm2))/sd(occupancy.df$SurfArea_cm2)
+
+occupancy.df <- subset(occupancy.df, select = c("Pool_ID", "JulianDate", "mosq_a", "mosq_b", "mosq_c", "mosq_d", "dfly_a", "dfly_b", "dfly_c", "dfly_d", "Temp_Z", "DistRC_Z", "SurfArea_Z",  "Temp_Predicted_C", "DistRC_m", "SurfArea_cm2"))
 ```
 
 
+# Model Selection
+
 ```{r, echo = FALSE, warning = FALSE}
 # Grabbing pool level covariates
-siteCovs <- as.data.frame(occupancy.df[c(1:2, 11:15)])
+siteCovs <- as.data.frame(occupancy.df[c(1:2, 11:16)])
 
 # Specify matrices of occ data, then make it into an unmarked dataframe
 sp1 <- as.matrix(occupancy.df[c(3:6)])
@@ -71,26 +79,28 @@ y <- list(sp1, sp2)
 umf <- unmarkedFrameOccuMulti(y = y, siteCovs = siteCovs, obsCovs = NULL)
 ```
 
-```{r, echo = FALSE, warning = FALSE}
-# According to Josh, Julian date can be considered a detection covariate, because abundance of either spp. probably varies in time, and that could affect our ability to detect them
+According to Josh, Julian date can be considered a detection covariate, because abundance of either spp. probably varies in time, and that could affect our ability to detect them.
+
+For the full model, we'll assume that Julian date determines detection, whereas occupancy itself is determined by temperature and surface area for mosquitoes, and distance to river channel and surface area for dragonflies. The probability of both occurring might have something to do with the variables that determine their occupancy separately.
+
+```{r, warning = FALSE}
 cand.models <- list()
 
-# First, the full model
-# We'll assume that the probability of both occurring might have something to do with the variables that determine their occupancy
-stateformulas <- c('~Temp_Zscore * logSurfArea', '~DistRC_m + logSurfArea', '~Temp_Zscore * logSurfArea + DistRC_m')
+# Full model
+stateformulas <- c('~Temp_Z * SurfArea_Z', '~DistRC_Z + SurfArea_Z', '~Temp_Z * SurfArea_Z + DistRC_Z')
 detformulas <- c('~JulianDate', '~JulianDate')
 
 cand.models[[1]] <- occuMulti(stateformulas = stateformulas,
                   detformulas = detformulas,
              data = umf,
              se = TRUE)
-
-# Now let's do some combo models
 ```
+
+Now let's do some combo models where we drop terms.
 
 ```{r, echo = FALSE, warning = FALSE}
 ## Drop SA from mosquitoes and overlap models
-stateformulas <- c('~Temp_Zscore', '~DistRC_m + logSurfArea', '~Temp_Zscore + logSurfArea + DistRC_m')
+stateformulas <- c('~Temp_Z', '~DistRC_Z + SurfArea_Z', '~Temp_Z + SurfArea_Z + DistRC_Z')
 detformulas <- c('~JulianDate', '~JulianDate')
 
 cand.models[[2]] <- occuMulti(stateformulas = stateformulas,
@@ -99,7 +109,7 @@ cand.models[[2]] <- occuMulti(stateformulas = stateformulas,
              se = TRUE)
 
 # Drop SA from mosquitoes and RC from dragons
-stateformulas <- c('~Temp_Zscore', '~logSurfArea', '~Temp_Zscore + logSurfArea')
+stateformulas <- c('~Temp_Z', '~SurfArea_Z', '~Temp_Z + SurfArea_Z')
 detformulas <- c('~JulianDate', '~JulianDate')
 
 cand.models[[3]] <- occuMulti(stateformulas = stateformulas,
@@ -108,7 +118,7 @@ cand.models[[3]] <- occuMulti(stateformulas = stateformulas,
              se = TRUE)
 
 # Drop SA from mosquitoes and SA from dragons
-stateformulas <- c('~Temp_Zscore', '~DistRC_m', '~Temp_Zscore + DistRC_m')
+stateformulas <- c('~Temp_Z', '~DistRC_Z', '~Temp_Z + DistRC_Z')
 detformulas <- c('~JulianDate', '~JulianDate')
 
 cand.models[[4]] <- occuMulti(stateformulas = stateformulas,
@@ -117,7 +127,7 @@ cand.models[[4]] <- occuMulti(stateformulas = stateformulas,
              se = TRUE)
 
 # Drop SA from mosquitoes and both from dragons
-stateformulas <- c('~Temp_Zscore', '~1', '~Temp_Zscore')
+stateformulas <- c('~Temp_Z', '~1', '~Temp_Z')
 detformulas <- c('~JulianDate', '~JulianDate')
 
 cand.models[[5]] <- occuMulti(stateformulas = stateformulas,
@@ -128,7 +138,7 @@ cand.models[[5]] <- occuMulti(stateformulas = stateformulas,
 
 ```{r, echo = FALSE, warning = FALSE}
 ## Drop temperature from the mosquito and overlap models
-stateformulas <- c('~logSurfArea', '~DistRC_m + logSurfArea', '~logSurfArea + DistRC_m')
+stateformulas <- c('~SurfArea_Z', '~DistRC_Z + SurfArea_Z', '~SurfArea_Z + DistRC_Z')
 detformulas <- c('~JulianDate', '~JulianDate')
 
 cand.models[[6]] <- occuMulti(stateformulas = stateformulas,
@@ -137,7 +147,7 @@ cand.models[[6]] <- occuMulti(stateformulas = stateformulas,
              se = TRUE)
 
 # Drop SA from dragons
-stateformulas <- c('~logSurfArea', '~DistRC_m', '~logSurfArea + DistRC_m')
+stateformulas <- c('~SurfArea_Z', '~DistRC_Z', '~SurfArea_Z + DistRC_Z')
 detformulas <- c('~JulianDate', '~JulianDate')
 
 cand.models[[7]] <- occuMulti(stateformulas = stateformulas,
@@ -145,8 +155,8 @@ cand.models[[7]] <- occuMulti(stateformulas = stateformulas,
              data = umf,
              se = TRUE)
 
-# Drop DistRC_m from dragons
-stateformulas <- c('~logSurfArea', '~logSurfArea', '~logSurfArea')
+# Drop DistRC_Z from dragons
+stateformulas <- c('~SurfArea_Z', '~SurfArea_Z', '~SurfArea_Z')
 detformulas <- c('~JulianDate', '~JulianDate')
 
 cand.models[[8]] <- occuMulti(stateformulas = stateformulas,
@@ -155,7 +165,7 @@ cand.models[[8]] <- occuMulti(stateformulas = stateformulas,
              se = TRUE)
 
 # Drop both from dragons
-stateformulas <- c('~logSurfArea', '~1', '~logSurfArea')
+stateformulas <- c('~SurfArea_Z', '~1', '~SurfArea_Z')
 detformulas <- c('~JulianDate', '~JulianDate')
 
 cand.models[[9]] <- occuMulti(stateformulas = stateformulas,
@@ -166,7 +176,7 @@ cand.models[[9]] <- occuMulti(stateformulas = stateformulas,
 
 ```{r, echo = FALSE, warning = FALSE}
 ## Drop both terms from mosquito and overlap model
-stateformulas <- c('~1', '~DistRC_m + logSurfArea', '~logSurfArea + DistRC_m')
+stateformulas <- c('~1', '~DistRC_Z + SurfArea_Z', '~SurfArea_Z + DistRC_Z')
 detformulas <- c('~JulianDate', '~JulianDate')
 
 cand.models[[10]] <- occuMulti(stateformulas = stateformulas,
@@ -174,8 +184,8 @@ cand.models[[10]] <- occuMulti(stateformulas = stateformulas,
              data = umf,
              se = TRUE)
 
-# Drop DistRC_m from dragon model
-stateformulas <- c('~1', '~logSurfArea', '~logSurfArea')
+# Drop DistRC_Z from dragon model
+stateformulas <- c('~1', '~SurfArea_Z', '~SurfArea_Z')
 detformulas <- c('~JulianDate', '~JulianDate')
 
 cand.models[[11]] <- occuMulti(stateformulas = stateformulas,
@@ -183,8 +193,8 @@ cand.models[[11]] <- occuMulti(stateformulas = stateformulas,
              data = umf,
              se = TRUE)
 
-# Drop logSurfArea from dragon model
-stateformulas <- c('~1', '~DistRC_m', '~DistRC_m')
+# Drop SurfArea_Z from dragon model
+stateformulas <- c('~1', '~DistRC_Z', '~DistRC_Z')
 detformulas <- c('~JulianDate', '~JulianDate')
 
 cand.models[[12]] <- occuMulti(stateformulas = stateformulas,
@@ -206,7 +216,7 @@ cand.models[[13]] <- occuMulti(stateformulas = stateformulas,
 ### All of the above, with a null expectation for the overlap model
 
 ## Drop SA from mosquitoes and overlap models
-stateformulas <- c('~Temp_Zscore', '~DistRC_m + logSurfArea', '~1')
+stateformulas <- c('~Temp_Z', '~DistRC_Z + SurfArea_Z', '~1')
 detformulas <- c('~JulianDate', '~JulianDate')
 
 cand.models[[14]] <- occuMulti(stateformulas = stateformulas,
@@ -215,7 +225,7 @@ cand.models[[14]] <- occuMulti(stateformulas = stateformulas,
              se = TRUE)
 
 # Drop SA from mosquitoes and RC from dragons
-stateformulas <- c('~Temp_Zscore', '~logSurfArea', '~1')
+stateformulas <- c('~Temp_Z', '~SurfArea_Z', '~1')
 detformulas <- c('~JulianDate', '~JulianDate')
 
 cand.models[[15]] <- occuMulti(stateformulas = stateformulas,
@@ -224,7 +234,7 @@ cand.models[[15]] <- occuMulti(stateformulas = stateformulas,
              se = TRUE)
 
 # Drop SA from mosquitoes and SA from dragons
-stateformulas <- c('~Temp_Zscore', '~DistRC_m', '~1')
+stateformulas <- c('~Temp_Z', '~DistRC_Z', '~1')
 detformulas <- c('~JulianDate', '~JulianDate')
 
 cand.models[[16]] <- occuMulti(stateformulas = stateformulas,
@@ -233,7 +243,7 @@ cand.models[[16]] <- occuMulti(stateformulas = stateformulas,
              se = TRUE)
 
 # Drop SA from mosquitoes and both from dragons
-stateformulas <- c('~Temp_Zscore', '~1', '~1')
+stateformulas <- c('~Temp_Z', '~1', '~1')
 detformulas <- c('~JulianDate', '~JulianDate')
 
 cand.models[[17]] <- occuMulti(stateformulas = stateformulas,
@@ -243,7 +253,7 @@ cand.models[[17]] <- occuMulti(stateformulas = stateformulas,
 
 
 ## Drop temperature from the mosquito and overlap models
-stateformulas <- c('~logSurfArea', '~DistRC_m + logSurfArea', '~1')
+stateformulas <- c('~SurfArea_Z', '~DistRC_Z + SurfArea_Z', '~1')
 detformulas <- c('~JulianDate', '~JulianDate')
 
 cand.models[[18]] <- occuMulti(stateformulas = stateformulas,
@@ -252,7 +262,7 @@ cand.models[[18]] <- occuMulti(stateformulas = stateformulas,
              se = TRUE)
 
 # Drop SA from dragons
-stateformulas <- c('~logSurfArea', '~DistRC_m', '~1')
+stateformulas <- c('~SurfArea_Z', '~DistRC_Z', '~1')
 detformulas <- c('~JulianDate', '~JulianDate')
 
 cand.models[[19]] <- occuMulti(stateformulas = stateformulas,
@@ -260,8 +270,8 @@ cand.models[[19]] <- occuMulti(stateformulas = stateformulas,
              data = umf,
              se = TRUE)
 
-# Drop DistRC_m from dragons
-stateformulas <- c('~logSurfArea', '~logSurfArea', '~1')
+# Drop DistRC_Z from dragons
+stateformulas <- c('~SurfArea_Z', '~SurfArea_Z', '~1')
 detformulas <- c('~JulianDate', '~JulianDate')
 
 cand.models[[20]] <- occuMulti(stateformulas = stateformulas,
@@ -270,7 +280,7 @@ cand.models[[20]] <- occuMulti(stateformulas = stateformulas,
              se = TRUE)
 
 # Drop both from dragons
-stateformulas <- c('~logSurfArea', '~1', '~1')
+stateformulas <- c('~SurfArea_Z', '~1', '~1')
 detformulas <- c('~JulianDate', '~JulianDate')
 
 cand.models[[21]] <- occuMulti(stateformulas = stateformulas,
@@ -279,7 +289,7 @@ cand.models[[21]] <- occuMulti(stateformulas = stateformulas,
              se = TRUE)
 
 ## Drop both terms from mosquito and overlap model
-stateformulas <- c('~1', '~DistRC_m + logSurfArea', '~1')
+stateformulas <- c('~1', '~DistRC_Z + SurfArea_Z', '~1')
 detformulas <- c('~JulianDate', '~JulianDate')
 
 cand.models[[22]] <- occuMulti(stateformulas = stateformulas,
@@ -287,8 +297,8 @@ cand.models[[22]] <- occuMulti(stateformulas = stateformulas,
              data = umf,
              se = TRUE)
 
-# Drop DistRC_m from dragon model
-stateformulas <- c('~1', '~logSurfArea', '~1')
+# Drop DistRC_Z from dragon model
+stateformulas <- c('~1', '~SurfArea_Z', '~1')
 detformulas <- c('~JulianDate', '~JulianDate')
 
 cand.models[[23]] <- occuMulti(stateformulas = stateformulas,
@@ -296,8 +306,8 @@ cand.models[[23]] <- occuMulti(stateformulas = stateformulas,
              data = umf,
              se = TRUE)
 
-# Drop logSurfArea from dragon model
-stateformulas <- c('~1', '~DistRC_m', '~1')
+# Drop SurfArea_Z from dragon model
+stateformulas <- c('~1', '~DistRC_Z', '~1')
 detformulas <- c('~JulianDate', '~JulianDate')
 
 cand.models[[24]] <- occuMulti(stateformulas = stateformulas,
@@ -310,7 +320,7 @@ cand.models[[24]] <- occuMulti(stateformulas = stateformulas,
 ```{r, echo = FALSE, warning = FALSE}
 ### All of the above, but assuming overlap is driven by mosquito terms ONLY
 ## Drop SA from mosquitoes and overlap models
-stateformulas <- c('~Temp_Zscore', '~DistRC_m + logSurfArea', '~Temp_Zscore')
+stateformulas <- c('~Temp_Z', '~DistRC_Z + SurfArea_Z', '~Temp_Z')
 detformulas <- c('~JulianDate', '~JulianDate')
 
 cand.models[[25]] <- occuMulti(stateformulas = stateformulas,
@@ -319,7 +329,7 @@ cand.models[[25]] <- occuMulti(stateformulas = stateformulas,
              se = TRUE)
 
 # Drop SA from mosquitoes and RC from dragons
-stateformulas <- c('~Temp_Zscore', '~logSurfArea', '~Temp_Zscore')
+stateformulas <- c('~Temp_Z', '~SurfArea_Z', '~Temp_Z')
 detformulas <- c('~JulianDate', '~JulianDate')
 
 cand.models[[26]] <- occuMulti(stateformulas = stateformulas,
@@ -328,7 +338,7 @@ cand.models[[26]] <- occuMulti(stateformulas = stateformulas,
              se = TRUE)
 
 # Drop SA from mosquitoes and SA from dragons
-stateformulas <- c('~Temp_Zscore', '~DistRC_m', '~Temp_Zscore')
+stateformulas <- c('~Temp_Z', '~DistRC_Z', '~Temp_Z')
 detformulas <- c('~JulianDate', '~JulianDate')
 
 cand.models[[27]] <- occuMulti(stateformulas = stateformulas,
@@ -337,7 +347,7 @@ cand.models[[27]] <- occuMulti(stateformulas = stateformulas,
              se = TRUE)
 
 # Drop SA from mosquitoes and both from dragons
-stateformulas <- c('~Temp_Zscore', '~1', '~Temp_Zscore')
+stateformulas <- c('~Temp_Z', '~1', '~Temp_Z')
 detformulas <- c('~JulianDate', '~JulianDate')
 
 cand.models[[28]] <- occuMulti(stateformulas = stateformulas,
@@ -347,7 +357,7 @@ cand.models[[28]] <- occuMulti(stateformulas = stateformulas,
 
 
 ## Drop temperature from the mosquito and overlap models
-stateformulas <- c('~logSurfArea', '~DistRC_m + logSurfArea', '~logSurfArea')
+stateformulas <- c('~SurfArea_Z', '~DistRC_Z + SurfArea_Z', '~SurfArea_Z')
 detformulas <- c('~JulianDate', '~JulianDate')
 
 cand.models[[29]] <- occuMulti(stateformulas = stateformulas,
@@ -356,7 +366,7 @@ cand.models[[29]] <- occuMulti(stateformulas = stateformulas,
              se = TRUE)
 
 # Drop SA from dragons
-stateformulas <- c('~logSurfArea', '~DistRC_m', '~logSurfArea')
+stateformulas <- c('~SurfArea_Z', '~DistRC_Z', '~SurfArea_Z')
 detformulas <- c('~JulianDate', '~JulianDate')
 
 cand.models[[30]] <- occuMulti(stateformulas = stateformulas,
@@ -364,8 +374,8 @@ cand.models[[30]] <- occuMulti(stateformulas = stateformulas,
              data = umf,
              se = TRUE)
 
-# Drop DistRC_m from dragons
-stateformulas <- c('~logSurfArea', '~logSurfArea', '~logSurfArea')
+# Drop DistRC_Z from dragons
+stateformulas <- c('~SurfArea_Z', '~SurfArea_Z', '~SurfArea_Z')
 detformulas <- c('~JulianDate', '~JulianDate')
 
 cand.models[[31]] <- occuMulti(stateformulas = stateformulas,
@@ -374,7 +384,7 @@ cand.models[[31]] <- occuMulti(stateformulas = stateformulas,
              se = TRUE)
 
 # Drop both from dragons
-stateformulas <- c('~logSurfArea', '~1', '~logSurfArea')
+stateformulas <- c('~SurfArea_Z', '~1', '~SurfArea_Z')
 detformulas <- c('~JulianDate', '~JulianDate')
 
 cand.models[[32]] <- occuMulti(stateformulas = stateformulas,
@@ -388,7 +398,7 @@ cand.models[[32]] <- occuMulti(stateformulas = stateformulas,
 ### All of the above, but assuming overlap is driven by dragonfly terms ONLY
 
 ## Drop SA from mosquitoes model
-stateformulas <- c('~Temp_Zscore', '~DistRC_m + logSurfArea', '~DistRC_m + logSurfArea')
+stateformulas <- c('~Temp_Z', '~DistRC_Z + SurfArea_Z', '~DistRC_Z + SurfArea_Z')
 detformulas <- c('~JulianDate', '~JulianDate')
 
 cand.models[[33]] <- occuMulti(stateformulas = stateformulas,
@@ -397,7 +407,7 @@ cand.models[[33]] <- occuMulti(stateformulas = stateformulas,
              se = TRUE)
 
 # Drop SA from mosquitoes and RC from dragons
-stateformulas <- c('~Temp_Zscore', '~logSurfArea', '~logSurfArea')
+stateformulas <- c('~Temp_Z', '~SurfArea_Z', '~SurfArea_Z')
 detformulas <- c('~JulianDate', '~JulianDate')
 
 cand.models[[34]] <- occuMulti(stateformulas = stateformulas,
@@ -406,7 +416,7 @@ cand.models[[34]] <- occuMulti(stateformulas = stateformulas,
              se = TRUE)
 
 # Drop SA from mosquitoes and SA from dragons
-stateformulas <- c('~Temp_Zscore', '~DistRC_m', '~DistRC_m')
+stateformulas <- c('~Temp_Z', '~DistRC_Z', '~DistRC_Z')
 detformulas <- c('~JulianDate', '~JulianDate')
 
 cand.models[[35]] <- occuMulti(stateformulas = stateformulas,
@@ -416,7 +426,7 @@ cand.models[[35]] <- occuMulti(stateformulas = stateformulas,
 
 
 ## Drop temperature from the mosquito models
-stateformulas <- c('~logSurfArea', '~DistRC_m + logSurfArea', '~DistRC_m + logSurfArea')
+stateformulas <- c('~SurfArea_Z', '~DistRC_Z + SurfArea_Z', '~DistRC_Z + SurfArea_Z')
 detformulas <- c('~JulianDate', '~JulianDate')
 
 cand.models[[36]] <- occuMulti(stateformulas = stateformulas,
@@ -425,7 +435,7 @@ cand.models[[36]] <- occuMulti(stateformulas = stateformulas,
              se = TRUE)
 
 # Drop SA from dragons
-stateformulas <- c('~logSurfArea', '~DistRC_m', '~DistRC_m')
+stateformulas <- c('~SurfArea_Z', '~DistRC_Z', '~DistRC_Z')
 detformulas <- c('~JulianDate', '~JulianDate')
 
 cand.models[[37]] <- occuMulti(stateformulas = stateformulas,
@@ -433,8 +443,8 @@ cand.models[[37]] <- occuMulti(stateformulas = stateformulas,
              data = umf,
              se = TRUE)
 
-# Drop DistRC_m from dragons
-stateformulas <- c('~logSurfArea', '~logSurfArea', '~logSurfArea')
+# Drop DistRC_Z from dragons
+stateformulas <- c('~SurfArea_Z', '~SurfArea_Z', '~SurfArea_Z')
 detformulas <- c('~JulianDate', '~JulianDate')
 
 cand.models[[38]] <- occuMulti(stateformulas = stateformulas,
@@ -443,7 +453,7 @@ cand.models[[38]] <- occuMulti(stateformulas = stateformulas,
              se = TRUE)
 
 ## Drop both terms from mosquito and overlap model
-stateformulas <- c('~1', '~DistRC_m + logSurfArea', '~DistRC_m + logSurfArea')
+stateformulas <- c('~1', '~DistRC_Z + SurfArea_Z', '~DistRC_Z + SurfArea_Z')
 detformulas <- c('~JulianDate', '~JulianDate')
 
 cand.models[[39]] <- occuMulti(stateformulas = stateformulas,
@@ -451,8 +461,8 @@ cand.models[[39]] <- occuMulti(stateformulas = stateformulas,
              data = umf,
              se = TRUE)
 
-# Drop DistRC_m from dragon model
-stateformulas <- c('~1', '~logSurfArea', '~logSurfArea')
+# Drop DistRC_Z from dragon model
+stateformulas <- c('~1', '~SurfArea_Z', '~SurfArea_Z')
 detformulas <- c('~JulianDate', '~JulianDate')
 
 cand.models[[40]] <- occuMulti(stateformulas = stateformulas,
@@ -460,8 +470,8 @@ cand.models[[40]] <- occuMulti(stateformulas = stateformulas,
              data = umf,
              se = TRUE)
 
-# Drop logSurfArea from dragon model
-stateformulas <- c('~1', '~DistRC_m', '~DistRC_m')
+# Drop SurfArea_Z from dragon model
+stateformulas <- c('~1', '~DistRC_Z', '~DistRC_Z')
 detformulas <- c('~JulianDate', '~JulianDate')
 
 cand.models[[41]] <- occuMulti(stateformulas = stateformulas,
@@ -474,7 +484,7 @@ cand.models[[41]] <- occuMulti(stateformulas = stateformulas,
 ## Only missing models are ones where the overlap model includes combinations of some (but not all) terms from both, e.g.
 
 # From the full model
-stateformulas <- c('~Temp_Zscore * logSurfArea', '~DistRC_m + logSurfArea', '~Temp_Zscore * logSurfArea')
+stateformulas <- c('~Temp_Z * SurfArea_Z', '~DistRC_Z + SurfArea_Z', '~Temp_Z * SurfArea_Z')
 detformulas <- c('~JulianDate', '~JulianDate')
 
 cand.models[[42]] <- occuMulti(stateformulas = stateformulas,
@@ -483,7 +493,7 @@ cand.models[[42]] <- occuMulti(stateformulas = stateformulas,
              se = TRUE)
 
 
-stateformulas <- c('~Temp_Zscore * logSurfArea', '~DistRC_m + logSurfArea', '~Temp_Zscore + DistRC_m')
+stateformulas <- c('~Temp_Z * SurfArea_Z', '~DistRC_Z + SurfArea_Z', '~Temp_Z + DistRC_Z')
 detformulas <- c('~JulianDate', '~JulianDate')
 
 cand.models[[43]] <- occuMulti(stateformulas = stateformulas,
@@ -492,7 +502,7 @@ cand.models[[43]] <- occuMulti(stateformulas = stateformulas,
              se = TRUE)
 
 
-stateformulas <- c('~Temp_Zscore * logSurfArea', '~DistRC_m + logSurfArea', '~DistRC_m + logSurfArea')
+stateformulas <- c('~Temp_Z * SurfArea_Z', '~DistRC_Z + SurfArea_Z', '~DistRC_Z + SurfArea_Z')
 detformulas <- c('~JulianDate', '~JulianDate')
 
 cand.models[[44]] <- occuMulti(stateformulas = stateformulas,
@@ -500,7 +510,7 @@ cand.models[[44]] <- occuMulti(stateformulas = stateformulas,
              data = umf,
              se = TRUE)
 
-stateformulas <- c('~Temp_Zscore * logSurfArea', '~DistRC_m + logSurfArea', '~logSurfArea')
+stateformulas <- c('~Temp_Z * SurfArea_Z', '~DistRC_Z + SurfArea_Z', '~SurfArea_Z')
 detformulas <- c('~JulianDate', '~JulianDate')
 
 cand.models[[45]] <- occuMulti(stateformulas = stateformulas,
@@ -508,7 +518,7 @@ cand.models[[45]] <- occuMulti(stateformulas = stateformulas,
              data = umf,
              se = TRUE)
 
-stateformulas <- c('~Temp_Zscore * logSurfArea', '~DistRC_m + logSurfArea', '~DistRC_m')
+stateformulas <- c('~Temp_Z * SurfArea_Z', '~DistRC_Z + SurfArea_Z', '~DistRC_Z')
 detformulas <- c('~JulianDate', '~JulianDate')
 
 cand.models[[46]] <- occuMulti(stateformulas = stateformulas,
@@ -516,7 +526,7 @@ cand.models[[46]] <- occuMulti(stateformulas = stateformulas,
              data = umf,
              se = TRUE)
 
-stateformulas <- c('~Temp_Zscore * logSurfArea', '~DistRC_m + logSurfArea', '~Temp_Zscore')
+stateformulas <- c('~Temp_Z * SurfArea_Z', '~DistRC_Z + SurfArea_Z', '~Temp_Z')
 detformulas <- c('~JulianDate', '~JulianDate')
 
 cand.models[[47]] <- occuMulti(stateformulas = stateformulas,
@@ -525,7 +535,7 @@ cand.models[[47]] <- occuMulti(stateformulas = stateformulas,
              se = TRUE)
 
 # From a model that drops temperature from mosquitoes
-stateformulas <- c('~logSurfArea', '~DistRC_m + logSurfArea', '~logSurfArea')
+stateformulas <- c('~SurfArea_Z', '~DistRC_Z + SurfArea_Z', '~SurfArea_Z')
 detformulas <- c('~JulianDate', '~JulianDate')
 
 cand.models[[48]] <- occuMulti(stateformulas = stateformulas,
@@ -533,7 +543,7 @@ cand.models[[48]] <- occuMulti(stateformulas = stateformulas,
              data = umf,
              se = TRUE)
 
-stateformulas <- c('~logSurfArea', '~DistRC_m + logSurfArea', '~DistRC_m')
+stateformulas <- c('~SurfArea_Z', '~DistRC_Z + SurfArea_Z', '~DistRC_Z')
 detformulas <- c('~JulianDate', '~JulianDate')
 
 cand.models[[49]] <- occuMulti(stateformulas = stateformulas,
@@ -542,7 +552,7 @@ cand.models[[49]] <- occuMulti(stateformulas = stateformulas,
              se = TRUE)
 
 # From a model that drops temperature and surface area from mosquitoes
-stateformulas <- c('~1', '~DistRC_m + logSurfArea', '~logSurfArea')
+stateformulas <- c('~1', '~DistRC_Z + SurfArea_Z', '~SurfArea_Z')
 detformulas <- c('~JulianDate', '~JulianDate')
 
 cand.models[[50]] <- occuMulti(stateformulas = stateformulas,
@@ -550,7 +560,7 @@ cand.models[[50]] <- occuMulti(stateformulas = stateformulas,
              data = umf,
              se = TRUE)
 
-stateformulas <- c('~1', '~DistRC_m + logSurfArea', '~DistRC_m')
+stateformulas <- c('~1', '~DistRC_Z + SurfArea_Z', '~DistRC_Z')
 detformulas <- c('~JulianDate', '~JulianDate')
 
 cand.models[[51]] <- occuMulti(stateformulas = stateformulas,
@@ -559,7 +569,7 @@ cand.models[[51]] <- occuMulti(stateformulas = stateformulas,
              se = TRUE)
 
 # From a model that drops surface area from mosquitoes
-stateformulas <- c('~Temp_Zscore', '~DistRC_m + logSurfArea', '~Temp_Zscore + logSurfArea')
+stateformulas <- c('~Temp_Z', '~DistRC_Z + SurfArea_Z', '~Temp_Z + SurfArea_Z')
 detformulas <- c('~JulianDate', '~JulianDate')
 
 cand.models[[52]] <- occuMulti(stateformulas = stateformulas,
@@ -567,7 +577,7 @@ cand.models[[52]] <- occuMulti(stateformulas = stateformulas,
              data = umf,
              se = TRUE)
 
-stateformulas <- c('~Temp_Zscore', '~DistRC_m + logSurfArea', '~Temp_Zscore + DistRC_m')
+stateformulas <- c('~Temp_Z', '~DistRC_Z + SurfArea_Z', '~Temp_Z + DistRC_Z')
 detformulas <- c('~JulianDate', '~JulianDate')
 
 cand.models[[53]] <- occuMulti(stateformulas = stateformulas,
@@ -575,7 +585,7 @@ cand.models[[53]] <- occuMulti(stateformulas = stateformulas,
              data = umf,
              se = TRUE)
 
-stateformulas <- c('~Temp_Zscore', '~DistRC_m + logSurfArea', '~DistRC_m')
+stateformulas <- c('~Temp_Z', '~DistRC_Z + SurfArea_Z', '~DistRC_Z')
 detformulas <- c('~JulianDate', '~JulianDate')
 
 cand.models[[54]] <- occuMulti(stateformulas = stateformulas,
@@ -583,7 +593,7 @@ cand.models[[54]] <- occuMulti(stateformulas = stateformulas,
              data = umf,
              se = TRUE)
 
-stateformulas <- c('~Temp_Zscore * logSurfArea', '~DistRC_m + logSurfArea', '~logSurfArea')
+stateformulas <- c('~Temp_Z * SurfArea_Z', '~DistRC_Z + SurfArea_Z', '~SurfArea_Z')
 detformulas <- c('~JulianDate', '~JulianDate')
 
 cand.models[[55]] <- occuMulti(stateformulas = stateformulas,
@@ -591,8 +601,8 @@ cand.models[[55]] <- occuMulti(stateformulas = stateformulas,
              data = umf,
              se = TRUE)
 
-# From a model that drops DistRC_m from dragons
-stateformulas <- c('~Temp_Zscore * logSurfArea', '~logSurfArea', '~Temp_Zscore')
+# From a model that drops DistRC_Z from dragons
+stateformulas <- c('~Temp_Z * SurfArea_Z', '~SurfArea_Z', '~Temp_Z')
 detformulas <- c('~JulianDate', '~JulianDate')
 
 cand.models[[56]] <- occuMulti(stateformulas = stateformulas,
@@ -601,7 +611,7 @@ cand.models[[56]] <- occuMulti(stateformulas = stateformulas,
              se = TRUE)
 
 # From a model that drops surface area from dragons
-stateformulas <- c('~Temp_Zscore * logSurfArea', '~DistRC_m', '~logSurfArea + DistRC_m')
+stateformulas <- c('~Temp_Z * SurfArea_Z', '~DistRC_Z', '~SurfArea_Z + DistRC_Z')
 detformulas <- c('~JulianDate', '~JulianDate')
 
 cand.models[[57]] <- occuMulti(stateformulas = stateformulas,
@@ -609,7 +619,7 @@ cand.models[[57]] <- occuMulti(stateformulas = stateformulas,
              data = umf,
              se = TRUE)
 
-stateformulas <- c('~Temp_Zscore * logSurfArea', '~DistRC_m', '~Temp_Zscore + DistRC_m')
+stateformulas <- c('~Temp_Z * SurfArea_Z', '~DistRC_Z', '~Temp_Z + DistRC_Z')
 detformulas <- c('~JulianDate', '~JulianDate')
 
 cand.models[[58]] <- occuMulti(stateformulas = stateformulas,
@@ -618,7 +628,7 @@ cand.models[[58]] <- occuMulti(stateformulas = stateformulas,
              se = TRUE)
 
 # From a model that drops both from dragons
-stateformulas <- c('~Temp_Zscore * logSurfArea', '~1', '~Temp_Zscore')
+stateformulas <- c('~Temp_Z * SurfArea_Z', '~1', '~Temp_Z')
 detformulas <- c('~JulianDate', '~JulianDate')
 
 cand.models[[59]] <- occuMulti(stateformulas = stateformulas,
@@ -626,7 +636,7 @@ cand.models[[59]] <- occuMulti(stateformulas = stateformulas,
              data = umf,
              se = TRUE)
 
-stateformulas <- c('~Temp_Zscore * logSurfArea', '~1', '~logSurfArea')
+stateformulas <- c('~Temp_Z * SurfArea_Z', '~1', '~SurfArea_Z')
 detformulas <- c('~JulianDate', '~JulianDate')
 
 cand.models[[60]] <- occuMulti(stateformulas = stateformulas,
@@ -635,55 +645,112 @@ cand.models[[60]] <- occuMulti(stateformulas = stateformulas,
              se = TRUE)
 ```
 
-```{r}
+```{r, echo = FALSE}
 ## Compare models
 mod.names <- paste("mod", 1:length(cand.models), sep = " " )
 aictab(cand.set = cand.models, modnames = mod.names, sort = TRUE)
 ```
 
+The top performing models:
+
 ```{r}
 ## Top performing models:
-summary(cand.models[[19]]) # Didn't converge, or it has NaNs somewhere weird
-summary(cand.models[[37]]) # Mossies as a function of surface area, dragons as a function of river channel, river channel for both but n.s.
-summary(cand.models[[30]]) # More NaNs
-summary(cand.models[[18]]) # Ditto
-summary(cand.models[[7]])
+summary(cand.models[[23]]) # Only includes surface area for dragonflies, which has a positive effect; NaNs produced though
+summary(cand.models[[26]]) # Includes temperature for mosquitoes (-, n.s.), surface area for dragonflies (+), temperature for both (+)
+summary(cand.models[[53]]) # Includes temperature for mosquitoes (-, n.s.), distance to river channel (-, n.s.) and surface area (+) for dragonflies, and temperature (+) and distance to river channel (-, n.s.) for both
+summary(cand.models[[25]]) # This one looks a little funky and has some NaNs for the intercept estimates
+summary(cand.models[[22]]) # No predicted for mosquitoes or the intercept, distance to river channel (-, n.s.) and surface area (+) for dragonflies
+summary(cand.models[[15]]) # Includes temperature (+, n.s.) for mosquitoes, surface area (+) for dragons, nothing for both
+```
+The above models are a bit of a mish-mash. Some include temperature for mosquitoes, but it's usually n.s. and sometimes negative, which is different from previous models. Surface area shows up a lot for dragonflies, and distance to river channel (which is usually n.s.).
 
-# None of the top performing models have temperature. Hmmmm.
-summary(cand.models[[7]])
-summary(cand.models[[49]])
-summary(cand.models[[29]])
-summary(cand.models[[48]])
-summary(cand.models[[57]]) # This is the first one that does, and it's still not significant (p = 0.086)
-# It includes temperature (n.s.), surface area, and their overlap (n.s.) for mossies; dist to river channel for dragons; surf area and RC for overlap (but n.s.)
+# Occupancy Probabilities
+
+For now, we will move forward with model 26, because the other top model has NaNs. Need to ask about what to do with these.
+
+```{r}
+# What's mean occupancy of all three states?; aka marginal occupancy probabilities
+margin.sp1 <- predict(cand.models[[26]], 'state', species = 1)
+mean(margin.sp1[,1]) # 53.6% chance of mosquito occupancy
+margin.sp2 <- predict(cand.models[[26]], 'state', species = 2)
+mean(margin.sp2[,1]) # 65.7% chance of dragonfly occupancy
+margin.sp1sp2 <- predict(cand.models[[26]], 'state', species = c(1, 2))
+mean(margin.sp1sp2[,1]) # 19.2% chance that both occur together
+
+# Impact of dragons on mosquitoes; aka conditional occupancy probabilities
+cond1 <- predict(cand.models[[26]], 'state', species = 1, cond = 2) # Probability of mosquitoes given dragonfly
+mean(cond1[,1]) # Only a 29.6% chance of mosquitoes given dragonflies
+cond2 <- predict(cand.models[[26]], 'state', species = 1, cond = -2) # Probability of mosquitoes given no dragonfly
+mean(cond2[,1]) # Nearly 100% chance of mosquitoes given no dragonfly... which seems impossible, no?
+odds.ratio1 <- cond1/cond2
+log.odds <- log(odds.ratio1) # Log odds ratio suggests negative effect of dragons on mosquito occupancy
+
+# So if this model is correct, dragons go wherever in the landscape regardless of temperature but seem to occur more often in bigger pools, while mosquitoes seem to occur slightly more often in warmer pools. The presence of dragons reduces the likelihood of mosquitoes being present, but this effect is weaker in warmer pools.
 ```
 
-```{r, eval = FALSE, echo = FALSE}
-predicted.fit <- predict(cand.models[[57]], type='state')
-predicted.vals <- as.data.frame(predicted.fit[1])
-predicted.vals <- cbind(predicted.vals, siteCovs)
-plot(x = predicted.vals$Temp_Predicted_C, y = predicted.vals$Predicted.psi.10.)
-plot(x = predicted.vals$logSurfArea, y = predicted.vals$Predicted.psi.10.)
-plot(x = predicted.vals$DistRC_m, y = predicted.vals$Predicted.psi.01.)
 
-# What's mean occupancy of all three states?
-mean(predicted.vals$Predicted.psi.10.) # 50.0% chance a pool had mosquitoes. Whoa!
-mean(predicted.vals$Predicted.psi.01.) # Only a 16.2% chance of dragons.
-mean(predicted.vals$Predicted.psi.11.) # Only 3.8% chance of both co-occurring. This is less than half of what would be expected based on random chance from the above probabilities (~8.1%). 
+# Figures
+
+```{r}
+TempZ.vec <- seq(-2.9, 4.0, by = 0.1) # Vector of possible temperature z-scores
+SurfArea.vec <- rep(0, length(TempZ.vec)) # Surface area held constant
+mosq_plot.df <- as.data.frame(cbind(TempZ.vec, SurfArea.vec))
+names(mosq_plot.df) <- c("Temp_Z", "SurfArea_Z")
+mosq.predict <- predict(cand.models[[26]], mosq_plot.df, type = 'state', species = 1)
+mosq.predict$Temp_C <- mosq_plot.df$Temp_Z * sd(occupancy.df$Temp_Predicted_C) + mean(occupancy.df$Temp_Predicted_C)
 
 
-# So if this model is correct, dragons go wherever in the landscape regardless of temperature but seem to occur more often closer to the river channel, while mosquitoes seem to prefer warmer, smaller pools. The presence of dragons reduces the likelihood of mosquitoes being present but is otherwise hard to predict.
+SurfArea.vec <- seq(-0.6, 9.8, by = 0.1) # Vector of possible surface area z-scores
+TempZ.vec <- rep(0, length(SurfArea.vec)) # Temperature held constant
+drgn_plot.df <- as.data.frame(cbind(TempZ.vec, SurfArea.vec))
+names(drgn_plot.df) <- c("Temp_Z", "SurfArea_Z")
+drgn.predict <- predict(cand.models[[26]], drgn_plot.df, type = 'state', species = 2)
+drgn.predict$SurfArea_cm2 <- log(drgn_plot.df$SurfArea_Z * sd(occupancy.df$SurfArea_cm2) + mean(occupancy.df$SurfArea_cm2))
+
+
+TempZ.vec <- seq(-2.9, 4.0, by = 0.1) # Vector of possible temperature z-scores
+SurfArea.vec <- rep(0, length(TempZ.vec)) # Surface area held constant
+both_plot.df <- as.data.frame(cbind(TempZ.vec, SurfArea.vec))
+names(both_plot.df) <- c("Temp_Z", "SurfArea_Z")
+both.predict <- predict(cand.models[[26]], both_plot.df, type = 'state', species = c(1,2))
+both.predict$Temp_C <- both_plot.df$Temp_Z * sd(occupancy.df$Temp_Predicted_C) + mean(occupancy.df$Temp_Predicted_C)
+
+ggplot( data = mosq.predict, aes( x = Temp_C, y = Predicted ) ) +
+  geom_line( size = 1, linetype = 2 ) +
+  geom_ribbon( aes( ymin = lower, ymax = upper ), alpha = 0.3) +
+  xlab( "Temperature (°C)" ) +
+  ylab( "Probability of Mosquito Occupancy" ) +
+  theme_classic( base_size = 16, base_line_size = 1 ) + 
+  scale_y_continuous(expand = c(0,0)) + 
+  scale_x_continuous(expand = c(0,0)) +
+  theme( legend.position = "none", 
+         axis.ticks = element_blank(),
+         panel.border = element_rect( color = "black", fill = NA, size = 0.75 ),
+         aspect.ratio = 1 )
+
+ggplot( data = drgn.predict, aes( x = SurfArea_cm2, y = Predicted ) ) +
+  geom_line( size = 1, linetype = 2 ) +
+  geom_ribbon( aes( ymin = lower, ymax = upper ), alpha = 0.3) +
+  labs(y = expression(Probability~of~Dragonfly~Occupancy), x = expression(log~Surface~Area~(cm^2))) +
+  theme_classic( base_size = 16, base_line_size = 1 ) + 
+  scale_y_continuous(expand = c(0,0)) + 
+  scale_x_continuous(expand = c(0,0)) +
+  theme( legend.position = "none", 
+         axis.ticks = element_blank(),
+         panel.border = element_rect( color = "black", fill = NA, size = 0.75 ),
+         aspect.ratio = 1 )
+
+ggplot( data = both.predict, aes( x = Temp_C, y = Predicted ) ) +
+  geom_line( size = 1, linetype = 2 ) +
+  geom_ribbon( aes( ymin = lower, ymax = upper ), alpha = 0.3) +
+  xlab( "Temperature (°C)" ) +
+  ylab( "Probability of Co-Occurrence" ) +
+  theme_classic( base_size = 16, base_line_size = 1 ) + 
+  scale_y_continuous(expand = c(0,0)) + 
+  scale_x_continuous(expand = c(0,0)) +
+  theme( legend.position = "none", 
+         axis.ticks = element_blank(),
+         panel.border = element_rect( color = "black", fill = NA, size = 0.75 ),
+         aspect.ratio = 1 )
 ```
 
-
-A couple of alternate approaches: Use the 9-sweep data, and model mosquito abundance as a function of dragonfly abundance + other covariates.
-
-Or, try a simple logistic model of mosquito presence/absence.
-
-How to handle surface area and temperature colinearity? The equivalent model to the best that includes temperature (mod57) that also excludes surface area for mosquitoes (mod4) has a dAIC of 112.49 which is pretty poor.
-
-Also to do: 
-
-How does one directly analyze whether spp. B affects spp. A's distribution? Some variety of goodness of fit test, like a chi-squared? See also Rota et al. 2016.
-
-Ask Josh also how he makes his figures.
