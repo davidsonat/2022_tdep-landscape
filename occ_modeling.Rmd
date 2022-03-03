@@ -760,4 +760,7 @@ ggplot( data = both.predict, aes( x = Temp_C, y = Predicted ) ) +
          axis.ticks = element_blank(),
          panel.border = element_rect( color = "black", fill = NA, size = 0.75 ),
          aspect.ratio = 1 )
+
+
+library(ggeffects)
 ```
