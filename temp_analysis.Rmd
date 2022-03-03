@@ -9,7 +9,7 @@ output:
 
 ```{r, echo = FALSE, warning = FALSE}
 temponly.df <- read.csv("temperature_data.csv")
-abiotic.df <- read.csv("abiotic_data_trimmed.csv")
+abiotic.df <- read.csv("abiotic_data.csv")
 slabs.df <- read.csv("slabno.csv")
 temp.df <- merge(temponly.df, abiotic.df)
 temp.df <- merge(temp.df, slabs.df)
@@ -59,12 +59,16 @@ hist(temp.df$Pct_Shaded)
 
 ## Applying Transformations
 
-Lots of right-skewing going on, so we'll do a few transformations. log for Area and Depth, and arcsine for PctShaded since it's a proportion.
+Lots of right-skewing going on, so we'll do a few transformations. Z-scores for everything.
 
 ```{r, warning = FALSE}
-temp.df$logArea <- log(temp.df$SurfArea_cm2)
-temp.df$logDepth <- log(temp.df$Depth_cm)
-temp.df$arcShade <- asin(sqrt(temp.df$Pct_Shaded))
+temp.df$DistRC_Z <- (temp.df$DistRC_m - mean(temp.df$DistRC_m))/sd(temp.df$DistRC_m)
+temp.df$Depth_Z <- (temp.df$Depth_cm - mean(temp.df$Depth_cm))/sd(temp.df$Depth_cm)
+temp.df$SurfArea_Z <- (temp.df$SurfArea_cm2 - mean(temp.df$SurfArea_cm2))/sd(temp.df$SurfArea_cm2)
+temp.df$Volume_Z <- (temp.df$Volume_cm3 - mean(temp.df$Volume_cm3))/sd(temp.df$Volume_cm3)
+temp.df$Pct_Shaded_Z <- (temp.df$Pct_Shaded - mean(temp.df$Pct_Shaded))/sd(temp.df$Pct_Shaded)
+temp.df$MaxRTemp_Z <- (temp.df$MaxRTemp_C - mean(temp.df$MaxRTemp_C))/sd(temp.df$MaxRTemp_C)
+temp.df$MaxATemp_Z <- (temp.df$MaxATemp_C - mean(temp.df$MaxATemp_C))/sd(temp.df$MaxATemp_C)
 
 temp.df$Date <- as.factor(temp.df$Date)
 ```
@@ -74,11 +78,11 @@ temp.df$Date <- as.factor(temp.df$Date)
 
 ```{r, echo = FALSE, warning = FALSE}
 library(GGally)
-temp2.df <- subset(temp.df, select = c("MaxWTemp_C", "MaxATemp_C", "MaxRTemp_C", "logArea", "logDepth", "arcShade", "DistRC_m"))
+temp2.df <- subset(temp.df, select = c("MaxWTemp_C", "MaxATemp_Z", "MaxRTemp_Z", "SurfArea_Z", "Depth_Z", "Pct_Shaded_Z", "DistRC_Z"))
 ggpairs(data = temp2.df)
 ```
 
-Area and depth look like good predictors, as does maximum air temperature and shade. Oddly, there is also some colinearity going on with some of our predictor variables, too (e.g., area x depth, shade x depth).
+Area and depth look like good predictors, as does maximum river temperature and shade. Oddly, there is also some colinearity going on with some of our predictor variables, too (e.g., area x depth, shade x depth).
 
 
 # Preliminary Modeling
@@ -90,63 +94,63 @@ library(glmmTMB)
 library(performance)
 
 # Depth, Area, Shade, and Air temp 
-mod1 <- glmmTMB(MaxWTemp_C ~ logDepth * logArea * arcShade + (1 | MaxATemp_C), data = temp.df )
+mod1 <- glmmTMB(MaxWTemp_C ~ Depth_Z * SurfArea_Z * Pct_Shaded_Z + (1 | MaxATemp_Z), data = temp.df )
 summary(mod1)
 
 # Depth, Shade, and Air Temp
-mod2 <- glmmTMB(MaxWTemp_C ~ logDepth * arcShade + (1 | MaxATemp_C), data = temp.df )
+mod2 <- glmmTMB(MaxWTemp_C ~ Depth_Z * Pct_Shaded_Z + (1 | MaxATemp_Z), data = temp.df )
 summary(mod2)
 
 # Area, Shade, and Air Temp
-mod3 <- glmmTMB(MaxWTemp_C ~ logArea * arcShade + (1 | MaxATemp_C), data = temp.df )
+mod3 <- glmmTMB(MaxWTemp_C ~ SurfArea_Z * Pct_Shaded_Z + (1 | MaxATemp_Z), data = temp.df )
 summary(mod3)
 
 # Depth, Shade, and Area
-mod4 <- glmmTMB(MaxWTemp_C ~ logDepth * logArea * arcShade, data = temp.df )
+mod4 <- glmmTMB(MaxWTemp_C ~ Depth_Z * SurfArea_Z * Pct_Shaded_Z, data = temp.df )
 summary(mod4)
 
 # Depth, Area, and Air Temp
-mod5 <- glmmTMB(MaxWTemp_C ~ logDepth * logArea + (1 | MaxATemp_C), data = temp.df )
+mod5 <- glmmTMB(MaxWTemp_C ~ Depth_Z * SurfArea_Z + (1 | MaxATemp_Z), data = temp.df )
 summary(mod5)
 
 # Depth and Shade
-mod6 <- glmmTMB(MaxWTemp_C ~ logDepth * arcShade, data = temp.df )
+mod6 <- glmmTMB(MaxWTemp_C ~ Depth_Z * Pct_Shaded_Z, data = temp.df )
 summary(mod6)
 
 # Depth and Air Temp
-mod7 <- glmmTMB(MaxWTemp_C ~ logDepth + (1 | MaxATemp_C), data = temp.df )
+mod7 <- glmmTMB(MaxWTemp_C ~ Depth_Z + (1 | MaxATemp_Z), data = temp.df )
 summary(mod7)
 
 # Depth and Area
-mod8 <- glmmTMB(MaxWTemp_C ~ logDepth * logArea, data = temp.df )
+mod8 <- glmmTMB(MaxWTemp_C ~ Depth_Z * SurfArea_Z, data = temp.df )
 summary(mod8)
 
 # Area and Shade
-mod9 <- glmmTMB(MaxWTemp_C ~ logArea * arcShade, data = temp.df )
+mod9 <- glmmTMB(MaxWTemp_C ~ SurfArea_Z * Pct_Shaded_Z, data = temp.df )
 summary(mod9)
 
 # Area and Air Temp
-mod10 <- glmmTMB(MaxWTemp_C ~ logArea + (1 | MaxATemp_C), data = temp.df )
+mod10 <- glmmTMB(MaxWTemp_C ~ SurfArea_Z + (1 | MaxATemp_Z), data = temp.df )
 summary(mod10)
 
 # Shade and Air Temp
-mod11 <- glmmTMB(MaxWTemp_C ~ arcShade + (1 | MaxATemp_C), data = temp.df )
+mod11 <- glmmTMB(MaxWTemp_C ~ Pct_Shaded_Z + (1 | MaxATemp_Z), data = temp.df )
 summary(mod11)
 
 # Area alone
-mod12 <- glmmTMB(MaxWTemp_C ~ logArea, data = temp.df )
+mod12 <- glmmTMB(MaxWTemp_C ~ SurfArea_Z, data = temp.df )
 summary(mod12)
 
 # Shade alone
-mod13 <- glmmTMB(MaxWTemp_C ~ arcShade, data = temp.df )
+mod13 <- glmmTMB(MaxWTemp_C ~ Pct_Shaded_Z, data = temp.df )
 summary(mod13)
 
 # Depth alone
-mod14 <- glmmTMB(MaxWTemp_C ~ logDepth, data = temp.df )
+mod14 <- glmmTMB(MaxWTemp_C ~ Depth_Z, data = temp.df )
 summary(mod14)
 
 # Air Temp alone
-mod15 <- glmmTMB(MaxWTemp_C ~ (1 | MaxATemp_C), data = temp.df )
+mod15 <- glmmTMB(MaxWTemp_C ~ (1 | MaxATemp_Z), data = temp.df )
 summary(mod15)
 ```
 
@@ -159,7 +163,7 @@ Water temperature data for the river is unavailable through the usual sources at
 ```{r, echo = FALSE, results = "hide", warning = FALSE}
 # River Temp as a random effect instead of date/air temp
 library(MuMIn)
-mod16 <- glmmTMB(MaxWTemp_C ~ logDepth * Pct_Shaded + ( 1 | MaxRTemp_C ), data = temp.df )
+mod16 <- glmmTMB(MaxWTemp_C ~ Depth_Z * Pct_Shaded_Z + ( 1 | MaxRTemp_Z ), data = temp.df )
 summary(mod16)
 temp.df$residual <- residuals(mod16)
 r.squaredGLMM(mod16)
@@ -169,8 +173,8 @@ Continuous, untransformed shade actually provides a lower AIC value than binning
 
 Including distance from river channel improves things too, but only marginally, and oddly, the parameter estimates for it aren't significant.
 
-```{r, echo = FALSE, results = "hide", warning = FALSE}
-mod17 <- glmmTMB(MaxWTemp_C ~ logDepth * Pct_Shaded * DistRC_m + ( 1 | MaxRTemp_C ), data = temp.df )
+```{r, echo = FALSE, eval  = FALSE, results = "hide", warning = FALSE}
+mod17 <- glmmTMB(MaxWTemp_C ~ Depth_Z * Pct_Shaded_Z * DistRC_Z + ( 1 | MaxRTemp_Z ), data = temp.df )
 summary(mod17)
 r.squaredGLMM(mod17)
 ```
@@ -179,18 +183,18 @@ Some other suggestions: river temperature as a fixed effect instead of a random 
 
 ```{r, echo = FALSE, results = "hide", warning = FALSE}
 temp.df$Pool_ID <- as.factor(temp.df$Pool_ID)
-mod18 <- glmmTMB(MaxWTemp_C ~ logDepth * Pct_Shaded + ( 1 | MaxRTemp_C ) + (1 | Pool_ID), data = temp.df )
+mod18 <- glmmTMB(MaxWTemp_C ~ Depth_Z * Pct_Shaded_Z + ( 1 | MaxRTemp_Z ) + (1 | Pool_ID), data = temp.df )
 summary(mod18)
 r.squaredGLMM(mod18)
 
-mod19 <- glmmTMB(MaxWTemp_C ~ logDepth * Pct_Shaded + (1 | Pool_ID), data = temp.df )
+mod19 <- glmmTMB(MaxWTemp_C ~ Depth_Z * Pct_Shaded_Z + (1 | Pool_ID), data = temp.df )
 summary(mod19)
 r.squaredGLMM(mod19)
 
-mod20 <- glmmTMB(MaxWTemp_C ~ logDepth * Pct_Shaded * MaxRTemp_C, data = temp.df )
+mod20 <- glmmTMB(MaxWTemp_C ~ Depth_Z * Pct_Shaded_Z * MaxRTemp_Z, data = temp.df )
 summary(mod20)
 
-mod21 <- glmmTMB(MaxWTemp_C ~ logDepth * Pct_Shaded + MaxRTemp_C + (1 | Pool_ID), data = temp.df )
+mod21 <- glmmTMB(MaxWTemp_C ~ Depth_Z * Pct_Shaded_Z + MaxRTemp_Z + (1 | Pool_ID), data = temp.df )
 summary(mod21)
 r.squaredGLMM(mod21)
 ```
@@ -200,7 +204,7 @@ library(AICcmodavg)
 library(dplyr)
 library(reshape2)
 library(kimisc)
-model_list <- nlist(mod1, mod2, mod3, mod4, mod5, mod6, mod7, mod8, mod9, mod10, mod11, mod12, mod13, mod14, mod15, mod16, mod17, mod18, mod19, mod20, mod21)
+model_list <- nlist(mod1, mod2, mod3, mod4, mod5, mod6, mod7, mod8, mod9, mod10, mod11, mod12, mod13, mod14, mod15, mod16, mod18, mod19, mod20, mod21)
 aic_table <- aictab(model_list)
 model_vars <- sapply(model_list, function(x) gsub(":", "*", paste(names(x$frame), collapse = " + ")))
 aic_table <- cbind(Modnames = names(model_vars), model_vars) %>%
@@ -242,13 +246,18 @@ ggplot(data = predict.df, aes(y = lat, x = long, colour = fitted)) +
 The next step will be to challenge the model (and ourselves) a bit. Can we simulate a day on which the river temperature is 25°C, as an example, and predict temperatures for the whole system? I will need a data set containing pool dimensions and the densiometer data for the full system. Fortunately, I've made one.
 
 ```{r, echo = FALSE, warning = FALSE}
-testdata.df <- read.csv("abiotic_data_trimmed.csv")
+testdata.df <- read.csv("abiotic_data.csv")
+testdata.df$Depth_cm <- as.numeric(testdata.df$Depth_cm)
+testdata.df$Pct_Shaded <- as.numeric(testdata.df$Pct_Shaded)
 testdata.df$Pool_ID <- as.factor(testdata.df$Pool_ID)
-testdata.df$MaxRTemp_C <- rep(30, nrow(testdata.df))
-testdata.df$logDepth <- log(testdata.df$Depth_cm)
+testdata.df$MaxRTemp_Z <- rep(0, nrow(testdata.df))
 testdata.df$Pct_Shaded <- testdata.df$Pct_Shaded/100
+testdata.df$Depth_Z <- (testdata.df$Depth_cm - mean(testdata.df$Depth_cm, na.rm = TRUE))/sd(testdata.df$Depth_cm, na.rm = TRUE)
+testdata.df$Pct_Shaded_Z <- (testdata.df$Pct_Shaded - mean(testdata.df$Pct_Shaded, na.rm = TRUE))/sd(testdata.df$Pct_Shaded, na.rm = TRUE)
 
-predict2.df <- predict(mod21, newdata = testdata.df, allow.new.levels = TRUE, se.fit = TRUE)
+testdata.df <- testdata.df[!is.na(testdata.df$Depth_Z),]
+testdata.df <- testdata.df[!is.na(testdata.df$Pct_Shaded_Z),]
+predict2.df <- predict(mod21, newdata = testdata.df, allow.new.levels = TRUE, se.fit = TRUE, na.rm = TRUE)
 predicted.df <- cbind(testdata.df, predict2.df)
 
 temp_plot <- ggplot(data = predicted.df, aes(y = lat, x = long, colour = fit)) +
@@ -276,15 +285,17 @@ predicted.df$SurfArea_cm2 <- NULL
 predicted.df$Volume_cm3 <- NULL
 predicted.df$Notes <- NULL
 predicted.df$MaxRTemp_C <- NULL
-predicted.df$pos <- NULL
-predicted.df$group <- NULL
+predicted.df$MaxRTemp_Z <- NULL
+# predicted.df$pos <- NULL
+# predicted.df$group <- NULL
 predicted.df$logDepth <- NULL
 
-colnames(predicted.df) <- c("Pool_ID", "lat", "long", "Depth_cm", "Pct_Shaded", "Temp_Predicted_C","Temp_StdErr", "Temp_Zscore")
+colnames(predicted.df) <- c("Pool_ID", "lat", "long", "Depth_cm", "Pct_Shaded", "Depth_Z", "Pct_Shaded_Z", "Temp_Predicted_C","Temp_StdErr", "Temp_Zscore")
 
 hist(predicted.df$Temp_Zscore)
 
 write.csv(predicted.df, "temp_predictions.csv", row.names = FALSE)
+saveRDS(mod21, "temp_model.rds")
 ```
 
 
