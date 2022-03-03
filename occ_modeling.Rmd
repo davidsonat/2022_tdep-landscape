@@ -764,3 +764,7 @@ ggplot( data = both.predict, aes( x = Temp_C, y = Predicted ) ) +
 
 library(ggeffects)
 ```
+
+Ideas: scrap other explanatory variables, or force temperature as a term in the model (no exclusions). Take date out, or include it in the state model. Alternatively, scrap this and do it as a glmm of abundance.
+
+Also -- transform your variables in the temperature glm. Z-scores.
