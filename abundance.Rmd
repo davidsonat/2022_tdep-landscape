@@ -1,0 +1,85 @@
+---
+title: "Abundance Modeling"
+author: "Andy"
+date: "3/14/2022"
+output: html_document
+---
+
+```{r}
+abundance.df <- read.csv("abundance_data.csv")
+abundance.df$Pool_ID <- as.factor(abundance.df$Pool_ID)
+abundance.df$Date <- abundance.df$ï..Date_Collected
+abundance.df$Date <- as.factor(abundance.df$Date)
+abundance.df$ï..Date_Collected <- NULL
+
+abiotic.df <- read.csv("temp_predictions.csv")
+abiotic.df$Pool_ID <- as.factor(abiotic.df$Pool_ID)
+
+abundance.df <- merge(abundance.df, abiotic.df)
+abundance.df$lat <- NULL
+abundance.df$long <- NULL
+abundance.df$Temp_StdErr <- NULL
+abundance2.df <- abundance.df[,2:9]
+abundance2.df$Date <- NULL
+
+library(GGally)
+ggpairs(abundance2.df)
+```
+
+```{r}
+library(glmmTMB)
+library(DHARMa)
+
+mod1 <- glmmTMB(Mosquito ~ Skimmer_Dragonfly + Temp_Zscore + (1 | Pool_ID), family = poisson(), data = abundance.df )
+summary(mod1)
+testDispersion(mod1) # It's overdispersed
+testZeroInflation(mod1) # And zero-inflated
+
+mod2 <- glmmTMB(Mosquito ~ Skimmer_Dragonfly + Temp_Zscore + (1 | Pool_ID), family = nbinom1(), data = abundance.df )
+summary(mod2)
+testDispersion(mod2) # Dispersion is ok
+testZeroInflation(mod2) # As is zero-inflation
+# AIC is also comparable to (actually, better than) the models below
+# Negative coefficient for dragonflies, positive coefficient for temperature
+
+mod3 <- glmmTMB(Mosquito ~ Skimmer_Dragonfly + Temp_Zscore + (1 | Pool_ID), ziformula = ~., family = truncated_poisson, data = abundance.df )
+summary(mod3)
+
+mod4 <- glmmTMB(Mosquito ~ Skimmer_Dragonfly + Temp_Zscore + (1 | Pool_ID), ziformula = ~., family = truncated_nbinom2, data = abundance.df )
+summary(mod4)
+
+
+# What if we z-score the dragonflies? Is that necessary?
+abundance.df$Skimmer_Z <- (abundance.df$Skimmer_Dragonfly - mean(abundance.df$Skimmer_Dragonfly))/sd(abundance.df$Skimmer_Dragonfly)
+
+mod5 <- glmmTMB(Mosquito ~ Skimmer_Z + Temp_Zscore + (1 | Pool_ID), family = nbinom1(), data = abundance.df )
+summary(mod5) # It barely changes anything, same AIC but the coefficients are different
+
+# Allowing an interaction term...
+mod6 <- glmmTMB(Mosquito ~ Skimmer_Z * Temp_Zscore + (1 | Pool_ID), family = nbinom1(), data = abundance.df )
+summary(mod6) # Slight improvement in AIC, interaction term is marginally n.s.
+# That's an interesting addition though, because it suggests that the effect of dragonflies may be a little less in warmer pools
+
+mod7 <- glmmTMB(Skimmer_Dragonfly ~ Temp_Zscore + (1 | Pool_ID), family = nbinom1(), data = abundance.df)
+summary(mod7) # Slight but n.s. effect of temperature on dragonflies
+testZeroInflation(mod7)
+testDispersion(mod7)
+```
+
+```{r}
+plot.df <- predict(mod5, abundance.df, se.fit = TRUE, type = "response")
+abundance.df$predicted <- plot.df$fit
+abundance.df$predicted_min <- plot.df$fit - 1.98 * plot.df$se.fit
+abundance.df$predicted_max <- plot.df$fit + 1.98 * plot.df$se.fit
+
+ggplot(abundance.df, aes(Temp_Predicted_C, predicted)) +
+  geom_errorbar(aes(ymin = predicted_min, ymax = predicted_max)) +
+  geom_point()
+
+ggplot(abundance.df, aes(Skimmer_Dragonfly, predicted)) +
+    geom_errorbar(aes(ymin = predicted_min, ymax = predicted_max)) +
+  geom_point()
+
+# Plots are uggo but functional
+```
+
