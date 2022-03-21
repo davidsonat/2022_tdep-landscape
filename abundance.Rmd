@@ -5,7 +5,18 @@ date: "3/14/2022"
 output: html_document
 ---
 
-```{r}
+# Models of Mosquito Abundance
+
+```{r, echo = FALSE, warnings = FALSE, message = FALSE, include = FALSE}
+library(glmmTMB)
+library(DHARMa)
+library(dotwhisker)
+library(broom)
+library(broom.mixed)
+library(jtools)
+```
+
+```{r, echo = FALSE, warnings = FALSE, message = FALSE}
 abundance.df <- read.csv("abundance_data.csv")
 abundance.df$Pool_ID <- as.factor(abundance.df$Pool_ID)
 abundance.df$Date <- abundance.df$ï..Date_Collected
@@ -19,67 +30,97 @@ abundance.df <- merge(abundance.df, abiotic.df)
 abundance.df$lat <- NULL
 abundance.df$long <- NULL
 abundance.df$Temp_StdErr <- NULL
-abundance2.df <- abundance.df[,2:9]
+abundance2.df <- abundance.df[,2:11]
+abundance2.df$Temp_Predicted_C <- NULL
 abundance2.df$Date <- NULL
 
 library(GGally)
 ggpairs(abundance2.df)
 ```
 
-```{r}
-library(glmmTMB)
-library(DHARMa)
 
-mod1 <- glmmTMB(Mosquito ~ Skimmer_Dragonfly + Temp_Zscore + (1 | Pool_ID), family = poisson(), data = abundance.df )
-summary(mod1)
-testDispersion(mod1) # It's overdispersed
-testZeroInflation(mod1) # And zero-inflated
+## Standard Poisson GLMM
 
-mod2 <- glmmTMB(Mosquito ~ Skimmer_Dragonfly + Temp_Zscore + (1 | Pool_ID), family = nbinom1(), data = abundance.df )
-summary(mod2)
-testDispersion(mod2) # Dispersion is ok
-testZeroInflation(mod2) # As is zero-inflation
-# AIC is also comparable to (actually, better than) the models below
-# Negative coefficient for dragonflies, positive coefficient for temperature
-
-mod3 <- glmmTMB(Mosquito ~ Skimmer_Dragonfly + Temp_Zscore + (1 | Pool_ID), ziformula = ~., family = truncated_poisson, data = abundance.df )
-summary(mod3)
-
-mod4 <- glmmTMB(Mosquito ~ Skimmer_Dragonfly + Temp_Zscore + (1 | Pool_ID), ziformula = ~., family = truncated_nbinom2, data = abundance.df )
-summary(mod4)
-
-
-# What if we z-score the dragonflies? Is that necessary?
+```{r, echo = FALSE}
 abundance.df$Skimmer_Z <- (abundance.df$Skimmer_Dragonfly - mean(abundance.df$Skimmer_Dragonfly))/sd(abundance.df$Skimmer_Dragonfly)
 
-mod5 <- glmmTMB(Mosquito ~ Skimmer_Z + Temp_Zscore + (1 | Pool_ID), family = nbinom1(), data = abundance.df )
-summary(mod5) # It barely changes anything, same AIC but the coefficients are different
-
-# Allowing an interaction term...
-mod6 <- glmmTMB(Mosquito ~ Skimmer_Z * Temp_Zscore + (1 | Pool_ID), family = nbinom1(), data = abundance.df )
-summary(mod6) # Slight improvement in AIC, interaction term is marginally n.s.
-# That's an interesting addition though, because it suggests that the effect of dragonflies may be a little less in warmer pools
-
-mod7 <- glmmTMB(Skimmer_Dragonfly ~ Temp_Zscore + (1 | Pool_ID), family = nbinom1(), data = abundance.df)
-summary(mod7) # Slight but n.s. effect of temperature on dragonflies
-testZeroInflation(mod7)
-testDispersion(mod7)
+mosq_poisson <- glmmTMB(Mosquito ~ Skimmer_Z * Temp_Zscore + (1 | Pool_ID), family = poisson(), data = abundance.df )
+summary(mosq_poisson)
+testDispersion(mosq_poisson) # It's overdispersed
+testZeroInflation(mosq_poisson) # And zero-inflated
 ```
 
-```{r}
-plot.df <- predict(mod5, abundance.df, se.fit = TRUE, type = "response")
-abundance.df$predicted <- plot.df$fit
-abundance.df$predicted_min <- plot.df$fit - 1.98 * plot.df$se.fit
-abundance.df$predicted_max <- plot.df$fit + 1.98 * plot.df$se.fit
 
-ggplot(abundance.df, aes(Temp_Predicted_C, predicted)) +
-  geom_errorbar(aes(ymin = predicted_min, ymax = predicted_max)) +
-  geom_point()
+## Negative Binomial GLMM
 
-ggplot(abundance.df, aes(Skimmer_Dragonfly, predicted)) +
-    geom_errorbar(aes(ymin = predicted_min, ymax = predicted_max)) +
-  geom_point()
-
-# Plots are uggo but functional
+```{r, echo = FALSE}
+mosq_nbinom <- glmmTMB(Mosquito ~ Skimmer_Z * Temp_Zscore + (1 | Pool_ID), family = nbinom1(), data = abundance.df )
+summary(mosq_nbinom)
+testDispersion(mosq_nbinom)
+testZeroInflation(mosq_nbinom)
 ```
 
+
+## Zero-Inflated Poisson GLMM
+
+```{r, echo = FALSE}
+mosq_trunc_poisson <- glmmTMB(Mosquito ~ Skimmer_Z * Temp_Zscore + (1 | Pool_ID), ziformula = ~., family = truncated_poisson, data = abundance.df )
+summary(mosq_trunc_poisson)
+testDispersion(mosq_trunc_poisson)
+testZeroInflation(mosq_trunc_poisson)
+```
+
+
+## Zero-Inflated Negative Binomial GLMM
+
+```{r, echo = FALSE}
+mosq_trunc_nbinom <- glmmTMB(Mosquito ~ Skimmer_Z * Temp_Zscore + (1 | Pool_ID), ziformula = ~., family = truncated_nbinom2, data = abundance.df )
+summary(mosq_trunc_nbinom)
+testDispersion(mosq_trunc_nbinom)
+testZeroInflation(mosq_trunc_nbinom) 
+```
+
+The truncated negative binomial model seems to work the best (lowest AIC), and indicates a positive effect of temperature on mosquito abundance, a negative effect of dragonflies, and a positive interaction term. This suggests that mosquitoes are more abundant in warmer pools, less abundant where dragonflies are present, but temperature may mitigate this effect somewhat.
+
+```{r, echo = FALSE, warnings = FALSE}
+plot.df <- broom::tidy(mosq_trunc_nbinom)
+plot.df$model <- c("nbinom", "nbinom", "nbinom", "nbinom", "zi", "zi", "zi", "zi", "zi", "zi")
+plot.df <- plot.df[-c(9,10),]
+dwplot(plot.df, 
+       vline = geom_vline(xintercept = 0, colour = "red", linetype = 2), 
+       dot_args = list(size = 4), 
+       line_args = list(size = 6)) + 
+  theme_classic(base_size = 16) 
+effect_plot(mosq_trunc_nbinom, pred = Temp_Zscore, interval = TRUE, plot.points = TRUE) 
+effect_plot(mosq_trunc_nbinom, pred = Skimmer_Z, interval = TRUE, plot.points = TRUE)
+```
+
+Note: a temperature Z score of 1 means that the pool reaches a daily maximum temperature of around 34$^\circ$C, and the mean number of skimmers (i.e., Z = 0) was a little over 1.
+
+
+# Models of Dragonfly Abundance
+
+## Poisson GLMM
+
+```{r, echo = FALSE}
+drgn_poisson <- glmmTMB(Skimmer_Dragonfly ~ Temp_Zscore + (1 | Pool_ID), family = poisson(), data = abundance.df)
+summary(drgn_poisson)
+testZeroInflation(drgn_poisson)
+testDispersion(drgn_poisson) # Poisson has some issues with overdispersion
+```
+
+
+## Negative Binomial GLMM
+
+```{r, echo = FALSE}
+drgn_nbinom <- glmmTMB(Skimmer_Dragonfly ~ Temp_Zscore + (1 | Pool_ID), family = nbinom1(), data = abundance.df)
+summary(drgn_nbinom)
+testZeroInflation(drgn_nbinom)
+testDispersion(drgn_nbinom)
+```
+
+Dragonflies seem to also have a positive correlation with temperature, but the coefficient is much smaller.
+
+```{r, echo = FALSE}
+effect_plot(drgn_nbinom, pred = Temp_Zscore, interval = TRUE, plot.points = TRUE)
+```
