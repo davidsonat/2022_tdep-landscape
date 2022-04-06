@@ -15,14 +15,16 @@ library(broom)
 library(broom.mixed)
 library(jtools)
 library(viridis)
+library(AICcmodavg)
 ```
 
 ```{r, echo = FALSE, warnings = FALSE, message = FALSE}
 abundance.df <- read.csv("abundance_data.csv")
 abundance.df$Pool_ID <- as.factor(abundance.df$Pool_ID)
-abundance.df$Date <- abundance.df$ï..Date_Collected
+abundance.df$Date <- abundance.df$Date_Collected
 abundance.df$Date <- as.factor(abundance.df$Date)
-abundance.df$ï..Date_Collected <- NULL
+abundance.df$Date_Collected <- NULL
+abundance.df$Date_Last_Flooded <- NULL
 
 abiotic.df <- read.csv("temp_predictions.csv")
 abiotic.df$Pool_ID <- as.factor(abiotic.df$Pool_ID)
@@ -39,8 +41,8 @@ library(GGally)
 ggpairs(abundance2.df)
 ```
 
-
-## Standard Poisson GLMM
+## Model Family
+### Standard Poisson GLMM
 
 ```{r, echo = FALSE}
 abundance.df$Skimmer_Z <- (abundance.df$Skimmer_Dragonfly - mean(abundance.df$Skimmer_Dragonfly))/sd(abundance.df$Skimmer_Dragonfly)
@@ -52,7 +54,7 @@ testZeroInflation(mosq_poisson) # And zero-inflated
 ```
 
 
-## Negative Binomial GLMM
+### Negative Binomial GLMM
 
 ```{r, echo = FALSE}
 mosq_nbinom2 <- glmmTMB(Mosquito ~ Skimmer_Z * Temp_Zscore + (1 | Pool_ID), family = nbinom2(), data = abundance.df )
@@ -64,7 +66,7 @@ testZeroInflation(mosq_nbinom2)
 ```
 
 
-## Zero-Inflated Poisson GLMM
+### Zero-Inflated Poisson GLMM
 
 ```{r, echo = FALSE}
 mosq_trunc_poisson <- glmmTMB(Mosquito ~ Skimmer_Z * Temp_Zscore + (1 | Pool_ID), ziformula = ~., family = truncated_poisson, data = abundance.df )
@@ -74,7 +76,7 @@ testZeroInflation(mosq_trunc_poisson)
 ```
 
 
-## Zero-Inflated Negative Binomial GLMM
+### Zero-Inflated Negative Binomial GLMM
 
 ```{r, echo = FALSE}
 mosq_trunc_nbinom2 <- glmmTMB(Mosquito ~ Skimmer_Z * Temp_Zscore + (1 | Pool_ID), ziformula = ~., family = truncated_nbinom2, data = abundance.df )
@@ -87,7 +89,6 @@ testZeroInflation(mosq_trunc_nbinom2)
 
 The truncated negative binomial model seems to work the best (lowest AIC), and indicates a positive effect of temperature on mosquito abundance, a negative effect of dragonflies, and a positive interaction term. This suggests that mosquitoes are more abundant in warmer pools, less abundant where dragonflies are present, but temperature may mitigate this effect somewhat.
 
-I'd like others to weigh in on this, though, because this is my first time playing with Hurdle models. E.g., does the significant skimmer term in the zero-inflation model suggest that having skimmers increases the odds of having a nonzero value for mosquitoes? Or is that reversed, i.e., having skimmers is more likely to lead to zeroes?
 
 ```{r, echo = FALSE, warnings = FALSE}
 plot.df <- broom::tidy(mosq_trunc_nbinom2)
@@ -100,14 +101,100 @@ dwplot(plot.df,
   theme_classic(base_size = 16) 
 effect_plot(mosq_trunc_nbinom2, pred = Temp_Zscore, interval = TRUE, plot.points = TRUE) 
 effect_plot(mosq_trunc_nbinom2, pred = Skimmer_Z, interval = TRUE, plot.points = TRUE)
+
+abundance.df$drgn_presence <- ifelse(abundance.df$Skimmer_Dragonfly > 0, 'yes', 'no')
+abundance.df$drgn_presence <- as.factor(abundance.df$drgn_presence)
+abundance.df$rel_temp <- ifelse(abundance.df$Temp_Zscore > 0, 'high', 'low')
+abundance.df$rel_temp <- as.factor(abundance.df$rel_temp)
+abundance2.df <- abundance.df[which(abundance.df$Mosquito > 0),]
+abundance3.df <- aggregate(abundance2.df$Mosquito, by = list(abundance2.df$rel_temp, abundance2.df$drgn_presence), FUN = 'mean')
+colnames(abundance3.df) <- c("rel_temp", "drgn_presence", "Mosquito")
+
+ggplot(data = abundance3.df, aes(y = Mosquito, x = drgn_presence, colour = rel_temp)) +
+  geom_point(size = 1.5, fill = "black") + 
+  geom_point(size = 3) +
+  theme_classic( base_size = 12, base_line_size = 1 ) + 
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        aspect.ratio = 1) +
+  labs(colour = "Temperature")
 ```
 
 Note: a temperature Z score of 1 means that the pool reaches a daily maximum temperature of around 34$^\circ$C, and the mean number of skimmers (i.e., Z = 0) was a little over 1.
 
 
+## Models Including Flooding and Other Variables
+
+```{r, echo = FALSE}
+abundance.df$Days_Between_Z <- (abundance.df$Days_Between_Flood_Sampling - mean(abundance.df$Days_Between_Flood_Sampling))/sd(abundance.df$Days_Between_Flood_Sampling)
+
+mosq_days <- glmmTMB(Mosquito ~ Skimmer_Z * Temp_Zscore + Days_Between_Z + (1 | Pool_ID), ziformula = ~., family = truncated_nbinom2, data = abundance.df )
+summary(mosq_days)
+```
+
+Including days since last flood doesn't improve the overall AIC, and doesn't shake out as a significant term.
+
+```{r, echo = FALSE}
+abundance.df$FloodedAt_Z <- (abundance.df$FloodedAt - mean(abundance.df$FloodedAt))/sd(abundance.df$FloodedAt)
+
+mosq_floodheight <- glmmTMB(Mosquito ~ Skimmer_Z * Temp_Zscore + FloodedAt_Z + Days_Between_Z + (1 | Pool_ID), ziformula = ~., family = truncated_nbinom2, data = abundance.df )
+summary(mosq_floodheight)
+```
+
+Including flood height AND days since last flood improves AIC and both are significant terms in the zero inflation model. This suggests that lower flood height pools are more likely to have mosquitoes, and pools that have flooded more recently also have a higher likelihood.
+
+This needs some playing with for model selection.
+
+```{r, echo = FALSE}
+mosq.cand.models <- list()
+
+# Temperature alone
+mosq.cand.models[[1]] <- glmmTMB(Mosquito ~ Temp_Zscore + (1 | Pool_ID), ziformula = ~., family = truncated_nbinom2(), data = abundance.df)
+
+# Dragons alone
+mosq.cand.models[[2]] <- glmmTMB(Mosquito ~ Skimmer_Z + (1 | Pool_ID), ziformula = ~., family = truncated_nbinom2(), data = abundance.df)
+
+# Days since last flooding alone
+mosq.cand.models[[3]] <- glmmTMB(Mosquito ~ Days_Between_Z + (1 | Pool_ID), ziformula = ~., family = truncated_nbinom2(), data = abundance.df)
+
+# Temperature and dragons
+mosq.cand.models[[4]] <- glmmTMB(Mosquito ~ Temp_Zscore * Skimmer_Z + (1 | Pool_ID), ziformula = ~., family = truncated_nbinom2(), data = abundance.df)
+
+# Temperature and days since
+mosq.cand.models[[5]] <- glmmTMB(Mosquito ~ Temp_Zscore + Days_Between_Z + (1 | Pool_ID), ziformula = ~., family = truncated_nbinom2(), data = abundance.df)
+
+# Dragons and days since
+mosq.cand.models[[6]] <- glmmTMB(Mosquito ~ Skimmer_Z + Days_Between_Z + (1 | Pool_ID), ziformula = ~., family = truncated_nbinom2(), data = abundance.df)
+
+# All three
+mosq.cand.models[[7]] <- glmmTMB(Mosquito ~ Temp_Zscore * Skimmer_Z + Days_Between_Z + (1 | Pool_ID), ziformula = ~., family = truncated_nbinom2(), data = abundance.df)
+
+mod.names <- paste("mod", 1:length(mosq.cand.models), sep = " " )
+aictab(cand.set = mosq.cand.models, modnames = mod.names, sort = TRUE)
+
+summary(mosq.cand.models[[4]])
+```
+
+Model 4, which includes skimmers and temperature only, wins. This one suggests that mosquitoes are less likely to be present when dragonflies are abundant, and when they are present, they're more abundant with fewer dragonflies, warmer temperatures, or in warm pools that have dragonflies.
+
+```{r, echo = FALSE, warnings = FALSE}
+plot1.df <- broom::tidy(mosq.cand.models[[4]])
+plot1.df$model <- c("nbinom", "nbinom", "nbinom", "nbinom", "zi", "zi", "zi", "zi", "cond", "zi")
+plot1.df <- plot1.df[-c(9,10),]
+dwplot(plot1.df, 
+       vline = geom_vline(xintercept = 0, colour = "red", linetype = 2), 
+       dot_args = list(size = 4), 
+       line_args = list(size = 6)) + 
+  theme_classic(base_size = 16) 
+effect_plot(mosq.cand.models[[4]], pred = Temp_Zscore, interval = TRUE, plot.points = TRUE) 
+effect_plot(mosq.cand.models[[4]], pred = Skimmer_Z, interval = TRUE, plot.points = TRUE)
+```
+
+
 # Models of Dragonfly Abundance
 
-## Poisson GLMM
+## Model Family
+### Poisson GLMM
 
 ```{r, echo = FALSE}
 drgn_poisson <- glmmTMB(Skimmer_Dragonfly ~ Temp_Zscore + (1 | Pool_ID), family = poisson(), data = abundance.df)
@@ -117,7 +204,7 @@ testDispersion(drgn_poisson) # Poisson has some issues with overdispersion
 ```
 
 
-## Negative Binomial GLMM
+### Negative Binomial GLMM
 
 ```{r, echo = FALSE}
 drgn_nbinom2 <- glmmTMB(Skimmer_Dragonfly ~ Temp_Zscore + (1 | Pool_ID), family = nbinom2(), data = abundance.df)
@@ -129,7 +216,7 @@ testDispersion(drgn_nbinom2)
 ```
 
 
-## Zero-Inflated Poisson Model
+### Zero-Inflated Poisson Model
 
 ```{r, echo = FALSE}
 drgn_trunc_poisson <- glmmTMB(Skimmer_Dragonfly ~ Temp_Zscore + (1 | Pool_ID), ziformula = ~., family = truncated_poisson, data = abundance.df )
@@ -139,7 +226,7 @@ testZeroInflation(drgn_trunc_poisson)
 ```
 
 
-## Zero-Inflated Negative Binomial Model
+### Zero-Inflated Negative Binomial Model
 
 ```{r, echo = FALSE}
 drgn_trunc_nbinom2 <- glmmTMB(Skimmer_Dragonfly ~ Temp_Zscore + (1 | Pool_ID), ziformula = ~., family = truncated_nbinom2(), data = abundance.df)
@@ -150,81 +237,68 @@ testDispersion(drgn_trunc_nbinom2)
 # There's still a bit of overdispersion here, but it beats nbinom1()
 ```
 
-The zero-inflated negative binomial model has the lowest AIC. Dragonfly abundance isn't correlated with temperature, but their presence (from the zero-inflation model) seems to be more common in warmer pools.
+## Playing with Additional Variables
 
 ```{r, echo = FALSE}
-effect_plot(drgn_trunc_nbinom2, pred = Temp_Zscore, interval = TRUE, plot.points = TRUE)
+drgn_trunc_nbinom2 <- glmmTMB(Skimmer_Dragonfly ~ Temp_Zscore + Pct_Shaded_Z + (1 | Pool_ID), ziformula = ~., family = truncated_nbinom2(), data = abundance.df)
+summary(drgn_trunc_nbinom2)
 ```
 
+The zero-inflated negative binomial model has the lowest AIC. Dragonfly abundance isn't correlated with temperature, but their presence (from the zero-inflation model) seems to be more common in unshaded (but not necessarily warmer!) pools.
 
-# Maps of Mosquito and Dragonfly Abundance
-
-## Mosquito Abundance
+Now to play with additional variables of importance (e.g., days since last flood from Stunkle et al. 2021). It might also help to exclude temperature from the above model.
 
 ```{r, echo = FALSE}
-fullsys.df <- read.csv("temp_predictions.csv")
-fullsys.df$Pool_ID <- as.factor(fullsys.df$Pool_ID)
+dfly.cand.models <- list()
 
-fullsys.df$Skimmer_Z <- rep(0, length(fullsys.df[,1]))
-mosq_predictions.df <- predict(mosq_trunc_nbinom2, newdata = fullsys.df, allow.new.levels = TRUE, se.fit = TRUE, na.rm = TRUE)
+# Temperature alone
+dfly.cand.models[[1]] <- glmmTMB(Skimmer_Dragonfly ~ Temp_Zscore + (1 | Pool_ID), ziformula = ~., family = truncated_nbinom2(), data = abundance.df)
 
-plot1.df <- cbind(fullsys.df, mosq_predictions.df)
-plot1.df$fit[which(plot1.df$fit < 0)] <- 0
+# Shading alone
+dfly.cand.models[[2]] <- glmmTMB(Skimmer_Dragonfly ~ Pct_Shaded_Z + (1 | Pool_ID), ziformula = ~., family = truncated_nbinom2(), data = abundance.df)
 
-ggplot(data = plot1.df, aes(y = lat, x = long, colour = fit)) +
-  geom_point(size = 2, fill = "black") + 
-  scale_colour_viridis() +
-  theme_classic( base_size = 12, base_line_size = 1 ) + 
-  theme(panel.background = element_rect(fill = "black", colour = "black", size = 0.5, linetype = "solid"),
-        panel.grid.major = element_blank(),
-        panel.grid.minor = element_blank(),
-        aspect.ratio = 1) +
-  labs(colour = "# of Mosquitoes")
+# Days since last flooding alone
+dfly.cand.models[[3]] <- glmmTMB(Skimmer_Dragonfly ~ Days_Between_Z + (1 | Pool_ID), ziformula = ~., family = truncated_nbinom2(), data = abundance.df)
+
+# Temperature and shading
+dfly.cand.models[[4]] <- glmmTMB(Skimmer_Dragonfly ~ Temp_Zscore + Pct_Shaded_Z + (1 | Pool_ID), ziformula = ~., family = truncated_nbinom2(), data = abundance.df)
+
+# Temperature and days since
+dfly.cand.models[[5]] <- glmmTMB(Skimmer_Dragonfly ~ Temp_Zscore + Days_Between_Z + (1 | Pool_ID), ziformula = ~., family = truncated_nbinom2(), data = abundance.df)
+
+# Shading and days since
+dfly.cand.models[[6]] <- glmmTMB(Skimmer_Dragonfly ~ Pct_Shaded_Z + Days_Between_Z + (1 | Pool_ID), ziformula = ~., family = truncated_nbinom2(), data = abundance.df)
+
+# All three
+dfly.cand.models[[7]] <- glmmTMB(Skimmer_Dragonfly ~ Temp_Zscore + Pct_Shaded_Z + Days_Between_Z + (1 | Pool_ID), ziformula = ~., family = truncated_nbinom2(), data = abundance.df)
+
+mod.names <- paste("mod", 1:length(dfly.cand.models), sep = " " )
+aictab(cand.set = dfly.cand.models, modnames = mod.names, sort = TRUE)
+
+summary(dfly.cand.models[[2]])
+summary(dfly.cand.models[[6]])
 ```
 
-The model is predicting negative values for mosquitoes in some cases, which is odd. I've rounded them up to zero to make this plot easier to look at, but there are a few (~30) in there. Should a negative binomial distribution even be able to produce negative values? Perhaps this is due to the random effect of Pool_ID?
+Models 2 and 6 do best (and are roughly equivalent), which include just shading (mod2) or shading and days since last flood (mod6). Both suggest that less shady pools  should have dragonflies (i.e., the zero-inflated component) but aren't predictors of abundance.
 
-Here is the same plot, with only the pools that were in the original data set included.
+```{r}
+plot2.df <- broom::tidy(dfly.cand.models[[2]])
+plot2.df$model <- c("nbinom", "nbinom", "zi", "zi", "cond", "zi")
+plot2.df <- plot2.df[-c(5,6),]
+dwplot(plot2.df, 
+       vline = geom_vline(xintercept = 0, colour = "red", linetype = 2), 
+       dot_args = list(size = 4), 
+       line_args = list(size = 6)) + 
+  theme_classic(base_size = 16) 
+effect_plot(dfly.cand.models[[2]], pred = Pct_Shaded_Z, interval = TRUE, plot.points = TRUE) 
 
-```{r, echo = FALSE}
-test.df <- abundance.df
-test.df$Skimmer_Z <- rep(0, length(test.df[,1]))
-mosq_predictions2.df <- predict(mosq_trunc_nbinom2, newdata = test.df, se.fit = TRUE, na.rm = TRUE)
-
-plot2.df <- cbind(test.df, mosq_predictions2.df)
-latlon.df <- fullsys.df[,1:3]
-plot2.df <- merge(plot2.df, latlon.df)
-
-ggplot(data = plot2.df, aes(y = lat, x = long, colour = fit)) +
-  geom_point(size = 2, fill = "black") + 
-  scale_colour_viridis() +
-  theme_classic( base_size = 12, base_line_size = 1 ) + 
-  theme(panel.background = element_rect(fill = "black", colour = "black", size = 0.5, linetype = "solid"),
-        panel.grid.major = element_blank(),
-        panel.grid.minor = element_blank(),
-        aspect.ratio = 1) +
-  labs(colour = "# of Mosquitoes")
+plot3.df <- broom::tidy(dfly.cand.models[[6]])
+plot3.df$model <- c("nbinom", "nbinom", "nbinom", "zi", "zi", "zi", "cond", "zi")
+plot3.df <- plot3.df[-c(7,8),]
+dwplot(plot3.df, 
+       vline = geom_vline(xintercept = 0, colour = "red", linetype = 2), 
+       dot_args = list(size = 4), 
+       line_args = list(size = 6)) + 
+  theme_classic(base_size = 16) 
+effect_plot(dfly.cand.models[[6]], pred = Pct_Shaded_Z, interval = TRUE, plot.points = TRUE) 
 ```
-
-Still a few negatives, but fewer than before.
-
-
-## Dragonfly Abundance
-
-```{r, echo = FALSE}
-drgn_predictions.df <- predict(drgn_nbinom2, newdata = fullsys.df, allow.new.levels = TRUE, se.fit = TRUE, na.rm = TRUE)
-plot3.df <- cbind(drgn_predictions.df, fullsys.df)
-plot3.df$fit[which(plot2.df$fit < 0)] <- 0
-
-ggplot(data = plot3.df, aes(y = lat, x = long, colour = fit)) +
-  geom_point(size = 2, fill = "black") + 
-  scale_colour_viridis() + 
-  theme_classic( base_size = 12, base_line_size = 1 ) + 
-  theme(panel.background = element_rect(fill = "black", colour = "black", size = 0.5, linetype = "solid"),
-        panel.grid.major = element_blank(),
-        panel.grid.minor = element_blank(),
-        aspect.ratio = 1) +
-  labs(colour = "Temp (°C)")
-```
-
-Likewise here, there are several pools predicted to have fewer than zero dragonflies. This may be an issue with extrapolating beyond the data set that was used to fit the model. One way of tackling this could be to expand the data set to years beyond 2022, to cover more pools.
