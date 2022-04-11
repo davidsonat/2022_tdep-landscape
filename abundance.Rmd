@@ -284,6 +284,8 @@ summary(dfly.cand.models[[6]])
 
 Models 2 and 6 do best (and are roughly equivalent), which include just shading (mod2) or shading and days since last flood (mod6). Both suggest that less shady pools  should have dragonflies (i.e., the zero-inflated component) but aren't predictors of abundance.
 
+Similarly here, using flood height vs. time since last flood is roughly equivalent.
+
 ```{r}
 plot2.df <- broom::tidy(dfly.cand.models[[2]])
 plot2.df$model <- c("nbinom", "nbinom", "zi", "zi", "cond", "zi")

@@ -54,6 +54,33 @@ hist(temp.df$SurfArea_m2)
 hist(temp.df$Volume_m3)
 hist(temp.df$Depth_m)
 hist(temp.df$Pct_Shaded)
+
+# Across pool variation
+aggregate(temp.df$MaxWTemp_C, by = list(temp.df$Date), FUN = max)
+aggregate(temp.df$MaxWTemp_C, by = list(temp.df$Date), FUN = min)
+maxtemp_mean <- aggregate(temp.df$MaxWTemp_C, by = list(temp.df$Date), FUN = mean)
+maxtemp_sd <- aggregate(temp.df$MaxWTemp_C, by = list(temp.df$Date), FUN = sd)
+maxtemp_se <- maxtemp_sd/sqrt(length(temp.df$MaxWTemp_C))
+
+aggregate(temp.df$MinWTemp_C, by = list(temp.df$Date), FUN = max)
+aggregate(temp.df$MinWTemp_C, by = list(temp.df$Date), FUN = min)
+aggregate(temp.df$MinWTemp_C, by = list(temp.df$Date), FUN = max) - aggregate(temp.df$MinWTemp_C, by = list(temp.df$Date), FUN = min)
+mintemp_mean <- aggregate(temp.df$MinWTemp_C, by = list(temp.df$Date), FUN = mean)
+mintemp_sd <- aggregate(temp.df$MinWTemp_C, by = list(temp.df$Date), FUN = sd)
+mintemp_se <- mintemp_sd/sqrt(length(temp.df$MinWTemp_C))
+
+temp.df$temp_range <-  temp.df$MaxWTemp_C - temp.df$MinWTemp_C
+cor(temp.df$MaxWTemp_C, temp.df$temp_range)
+cor(temp.df$MinWTemp_C, temp.df$temp_range)
+
+# Within pool variation
+mean(temp.df$temp_range)
+sd(temp.df$temp_range)/sqrt(length(temp.df$temp_range))
+
+mintemp_mean <- aggregate(temp.df$MinWTemp_C, by = list(temp.df$Date), FUN = mean)
+mintemp_sd <- aggregate(temp.df$MinWTemp_C, by = list(temp.df$Date), FUN = sd)
+mintemp_cv <- mintemp_mean/mintemp_sd
+mintemp_cv
 ```
 
 
