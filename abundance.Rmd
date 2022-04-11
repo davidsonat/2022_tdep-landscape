@@ -177,6 +177,9 @@ summary(mosq.cand.models[[4]])
 
 Model 4, which includes skimmers and temperature only, wins. This one suggests that mosquitoes are less likely to be present when dragonflies are abundant, and when they are present, they're more abundant with fewer dragonflies, warmer temperatures, or in warm pools that have dragonflies.
 
+Running this with flood height instead of time since last flood doesn't change the outcome much.
+
+
 ```{r, echo = FALSE, warnings = FALSE}
 plot1.df <- broom::tidy(mosq.cand.models[[4]])
 plot1.df$model <- c("nbinom", "nbinom", "nbinom", "nbinom", "zi", "zi", "zi", "zi", "cond", "zi")
