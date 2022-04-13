@@ -55,19 +55,21 @@ hist(temp.df$Volume_m3)
 hist(temp.df$Depth_m)
 hist(temp.df$Pct_Shaded)
 
+temp.df$Date <- as.factor(temp.df$Date)
+
 # Across pool variation
 aggregate(temp.df$MaxWTemp_C, by = list(temp.df$Date), FUN = max)
 aggregate(temp.df$MaxWTemp_C, by = list(temp.df$Date), FUN = min)
 maxtemp_mean <- aggregate(temp.df$MaxWTemp_C, by = list(temp.df$Date), FUN = mean)
 maxtemp_sd <- aggregate(temp.df$MaxWTemp_C, by = list(temp.df$Date), FUN = sd)
-maxtemp_se <- maxtemp_sd/sqrt(length(temp.df$MaxWTemp_C))
+maxtemp_se <- maxtemp_sd$x/sqrt(length(temp.df$MaxWTemp_C))
 
 aggregate(temp.df$MinWTemp_C, by = list(temp.df$Date), FUN = max)
 aggregate(temp.df$MinWTemp_C, by = list(temp.df$Date), FUN = min)
 aggregate(temp.df$MinWTemp_C, by = list(temp.df$Date), FUN = max) - aggregate(temp.df$MinWTemp_C, by = list(temp.df$Date), FUN = min)
 mintemp_mean <- aggregate(temp.df$MinWTemp_C, by = list(temp.df$Date), FUN = mean)
 mintemp_sd <- aggregate(temp.df$MinWTemp_C, by = list(temp.df$Date), FUN = sd)
-mintemp_se <- mintemp_sd/sqrt(length(temp.df$MinWTemp_C))
+mintemp_se <- mintemp_sd$x/sqrt(length(temp.df$MinWTemp_C))
 
 temp.df$temp_range <-  temp.df$MaxWTemp_C - temp.df$MinWTemp_C
 cor(temp.df$MaxWTemp_C, temp.df$temp_range)
@@ -201,9 +203,9 @@ Continuous, untransformed shade actually provides a lower AIC value than binning
 Including distance from river channel improves things too, but only marginally, and oddly, the parameter estimates for it aren't significant.
 
 ```{r, echo = FALSE, eval  = FALSE, results = "hide", warning = FALSE}
-mod17 <- glmmTMB(MaxWTemp_C ~ Depth_Z * Pct_Shaded_Z * DistRC_Z + ( 1 | MaxRTemp_Z ), data = temp.df )
-summary(mod17)
-r.squaredGLMM(mod17)
+# mod17 <- glmmTMB(MaxWTemp_C ~ Depth_Z * Pct_Shaded_Z * DistRC_Z + ( 1 | MaxRTemp_Z ), data = temp.df )
+# summary(mod17)
+# r.squaredGLMM(mod17)
 ```
 
 Some other suggestions: river temperature as a fixed effect instead of a random effect, and pool ID as a random effect.
@@ -241,6 +243,33 @@ aic_table
 ```
 
 Ultimately, the best model includes Pool ID as a random effect, and river temperature as a fixed effect. Its AIC is 977.9 (nothing else comes particularly close), with a marginal r^2^ of 0.52 and a conditional of 0.87. It's worth noting that Pool ID and lat/long coords (outlined below) are virtually interchangeable here, so we will use Pool ID because it makes the math and interpretation simpler.
+
+```{r}
+library(dotwhisker)
+library(broom)
+library(broom.mixed)
+plot1.df <- broom::tidy(mod21)
+plot1.df$model <- c("cond", "cond", "cond", "cond", "cond", "cond", "cond")
+plot1.df <- plot1.df[-c(1,6,7),]
+plot1.df$term <- c("Depth (cm)", "Shading", "Max River Temp. (°C)", "Depth:Shading")
+coeff.plot <- dwplot(plot1.df, 
+       vline = geom_vline(xintercept = 0, colour = "grey80", linetype = 2, size = 1), 
+       dot_args = list(size = 4), 
+       line_args = list(size = 6)) + 
+  theme_classic( base_size = 16, base_line_size = 1 ) + 
+  xlab("Coefficient Estimate") +
+  theme( panel.border = element_rect( color = "black", fill = NA, size = 0.75 ),
+         aspect.ratio = 1,
+         legend.position = "none")
+
+ggsave( "Fig2.png",
+        plot = coeff.plot,
+        width = 164,
+        height = 164,
+        units = c("mm"),
+        dpi = 300 )
+```
+
 
 ## Predicting from the Model
 
