@@ -72,8 +72,17 @@ mintemp_sd <- aggregate(temp.df$MinWTemp_C, by = list(temp.df$Date), FUN = sd)
 mintemp_se <- mintemp_sd$x/sqrt(length(temp.df$MinWTemp_C))
 
 temp.df$temp_range <-  temp.df$MaxWTemp_C - temp.df$MinWTemp_C
-cor(temp.df$MaxWTemp_C, temp.df$temp_range)
+cor(temp.df$MaxWTemp_C, temp.df$cvWTemp_C)
 cor(temp.df$MinWTemp_C, temp.df$temp_range)
+
+# ggplot(temp.df, aes(y = cvWTemp_C, x = MaxWTemp_C)) + 
+#   geom_point() +
+#   theme_classic( base_size = 16, base_line_size = 1 ) + 
+#   xlab("Coeff. of Variation") + 
+#   ylab("Maximum Temperature (°C)") +
+#   theme( panel.border = element_rect( color = "black", fill = NA, size = 0.75 ),
+#          aspect.ratio = 1,
+#          legend.position = "none")
 
 # Within pool variation
 mean(temp.df$temp_range)
