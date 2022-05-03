@@ -22,9 +22,38 @@ First, let's take a look at some of the data and explore it for correlations.
 ## Temperature Metrics
 
 ```{r, echo = FALSE, warning = FALSE}
+library(ggplot2)
 hist(temp.df$MinWTemp)
 hist(temp.df$MeanWTemp)
-hist(temp.df$MaxWTemp)
+max.hist <- ggplot(temp.df, aes(x = MaxWTemp_C)) +
+  geom_histogram(binwidth = 2, colour = "black", fill = "grey80") +  
+  theme_classic( base_size = 24, base_line_size = 1 ) + 
+  scale_y_continuous( expand = c(0, 0), limits = c(0, 60) ) +
+  scale_x_continuous( limits = c(15, 45)) +
+  xlab("Max Temperature (°C)") +
+  theme( panel.border = element_rect( color = "black", fill = NA, size = 0.75 ),
+         legend.position = "none",
+         aspect.ratio = 1)
+
+ggsave("maxhist.png",
+        plot = max.hist,
+        units = c("mm"),
+        dpi = 300)
+
+min.hist <- ggplot(temp.df, aes(x = MinWTemp_C)) +
+  geom_histogram(binwidth = 2, colour = "black", fill = "grey80") +  
+  theme_classic( base_size = 24, base_line_size = 1 ) + 
+  scale_y_continuous( expand = c(0, 0), limits = c(0, 60) ) +
+  scale_x_continuous( limits = c(15, 45)) +
+  xlab("Min Temperature (°C)") +
+  theme( panel.border = element_rect( color = "black", fill = NA, size = 0.75 ),
+         legend.position = "none",
+         aspect.ratio = 1)
+
+ggsave("minhist.png",
+        plot = min.hist,
+        units = c("mm"),
+        dpi = 300)
 
 plot(MeanWTemp_C ~ MaxWTemp_C, data = temp.df)
 ```
@@ -75,19 +104,20 @@ temp.df$temp_range <-  temp.df$MaxWTemp_C - temp.df$MinWTemp_C
 cor(temp.df$MaxWTemp_C, temp.df$cvWTemp_C)
 cor(temp.df$MinWTemp_C, temp.df$temp_range)
 
-# cv.plot <- ggplot(temp.df, aes(y = cvWTemp_C, x = MaxWTemp_C)) +
-#   geom_point() +
-#   theme_classic( base_size = 16, base_line_size = 1 ) +
-#   ylab("Coeff. of Variation") +
-#   xlab("Maximum Temperature (°C)") +
-#   theme( panel.border = element_rect( color = "black", fill = NA, size = 0.75 ),
-#          aspect.ratio = 1,
-#          legend.position = "none")
-# 
-# ggsave( "Fig6.png",
-#         plot = cv.plot,
-#         units = c("mm"),
-#         dpi = 300 )
+cv.plot <- ggplot(temp.df, aes(x = temp_range)) +
+  geom_histogram(binwidth = 2, colour = "black", fill = "grey80") +  
+  theme_classic( base_size = 24, base_line_size = 1 ) + 
+  scale_y_continuous( expand = c(0, 0) ) +
+  xlab("Daily Temp Range (°C)") +
+  theme( panel.border = element_rect( color = "black", fill = NA, size = 0.75 ),
+         legend.position = "none",
+         aspect.ratio = 1)
+
+ggsave("cvhist.png",
+        plot = cv.plot,
+        units = c("mm"),
+        dpi = 300)
+
 
 # Within pool variation
 mean(temp.df$temp_range)

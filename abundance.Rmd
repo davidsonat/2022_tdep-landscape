@@ -102,22 +102,33 @@ dwplot(plot.df,
 effect_plot(mosq_trunc_nbinom2, pred = Temp_Zscore, interval = TRUE, plot.points = TRUE) 
 effect_plot(mosq_trunc_nbinom2, pred = Skimmer_Z, interval = TRUE, plot.points = TRUE)
 
-abundance.df$drgn_presence <- ifelse(abundance.df$Skimmer_Dragonfly > 0, 'yes', 'no')
+abundance.df$drgn_presence <- ifelse(abundance.df$Skimmer_Dragonfly > 0, 'Present', 'Absent')
 abundance.df$drgn_presence <- as.factor(abundance.df$drgn_presence)
-abundance.df$rel_temp <- ifelse(abundance.df$Temp_Zscore > 0, 'high', 'low')
+abundance.df$rel_temp <- ifelse(abundance.df$Temp_Zscore > 0, 'Above Mean', 'Below Mean')
 abundance.df$rel_temp <- as.factor(abundance.df$rel_temp)
 abundance2.df <- abundance.df[which(abundance.df$Mosquito > 0),]
 abundance3.df <- aggregate(abundance2.df$Mosquito, by = list(abundance2.df$rel_temp, abundance2.df$drgn_presence), FUN = 'mean')
 colnames(abundance3.df) <- c("rel_temp", "drgn_presence", "Mosquito")
+samplesize <- aggregate(abundance2.df$Mosquito, by = list(abundance2.df$rel_temp, abundance2.df$drgn_presence), FUN = 'length')
+stdev <- aggregate(abundance2.df$Mosquito, by = list(abundance2.df$rel_temp, abundance2.df$drgn_presence), FUN = 'sd')
+abundance3.df$std.err <- stdev[,3]/sqrt(samplesize[,3])
 
-ggplot(data = abundance3.df, aes(y = Mosquito, x = drgn_presence, colour = rel_temp)) +
-  geom_point(size = 1.5, fill = "black") + 
-  geom_point(size = 3) +
-  theme_classic( base_size = 12, base_line_size = 1 ) + 
+interaction.plot <- ggplot(data = abundance3.df, aes(y = Mosquito, x = drgn_presence, colour = rel_temp)) +
+  geom_point(size = 5) +
+  geom_errorbar(aes(ymin = Mosquito - std.err, ymax = Mosquito + std.err), width = 0.25, size = 0.75) +
+  theme_classic( base_size = 24, base_line_size = 1 ) +   
+  scale_y_continuous(expand = c(0,0)) +
+  xlab("Dragonfly Nymphs") +
+  ylab("Mosquito Abundance") +
   theme(panel.grid.major = element_blank(),
         panel.grid.minor = element_blank(),
         aspect.ratio = 1) +
   labs(colour = "Temperature")
+
+ggsave( "interaction.png",
+        plot = interaction.plot,
+        units = c("mm"),
+        dpi = 300)
 ```
 
 Note: a temperature Z score of 1 means that the pool reaches a daily maximum temperature of around 34$^\circ$C, and the mean number of skimmers (i.e., Z = 0) was a little over 1.
@@ -149,25 +160,25 @@ This needs some playing with for model selection.
 mosq.cand.models <- list()
 
 # Temperature alone
-mosq.cand.models[[1]] <- glmmTMB(Mosquito ~ Temp_Zscore + (1 | Pool_ID), ziformula = ~., family = truncated_nbinom2(), data = abundance.df)
+mosq.cand.models[[1]] <- glmmTMB(Mosquito ~ Temp_Zscore + (1 | Date), ziformula = ~., family = truncated_nbinom2(), data = abundance.df)
 
 # Dragons alone
-mosq.cand.models[[2]] <- glmmTMB(Mosquito ~ Skimmer_Z + (1 | Pool_ID), ziformula = ~., family = truncated_nbinom2(), data = abundance.df)
+mosq.cand.models[[2]] <- glmmTMB(Mosquito ~ Skimmer_Z + (1 | Date), ziformula = ~., family = truncated_nbinom2(), data = abundance.df)
 
 # Days since last flooding alone
-mosq.cand.models[[3]] <- glmmTMB(Mosquito ~ Days_Between_Z + (1 | Pool_ID), ziformula = ~., family = truncated_nbinom2(), data = abundance.df)
+mosq.cand.models[[3]] <- glmmTMB(Mosquito ~ Days_Between_Z + (1 | Date), ziformula = ~., family = truncated_nbinom2(), data = abundance.df)
 
 # Temperature and dragons
-mosq.cand.models[[4]] <- glmmTMB(Mosquito ~ Temp_Zscore * Skimmer_Z + (1 | Pool_ID), ziformula = ~., family = truncated_nbinom2(), data = abundance.df)
+mosq.cand.models[[4]] <- glmmTMB(Mosquito ~ Temp_Zscore * Skimmer_Z + (1 | Date), ziformula = ~., family = truncated_nbinom2(), data = abundance.df)
 
 # Temperature and days since
-mosq.cand.models[[5]] <- glmmTMB(Mosquito ~ Temp_Zscore + Days_Between_Z + (1 | Pool_ID), ziformula = ~., family = truncated_nbinom2(), data = abundance.df)
+mosq.cand.models[[5]] <- glmmTMB(Mosquito ~ Temp_Zscore + Days_Between_Z + (1 | Date), ziformula = ~., family = truncated_nbinom2(), data = abundance.df)
 
 # Dragons and days since
-mosq.cand.models[[6]] <- glmmTMB(Mosquito ~ Skimmer_Z + Days_Between_Z + (1 | Pool_ID), ziformula = ~., family = truncated_nbinom2(), data = abundance.df)
+mosq.cand.models[[6]] <- glmmTMB(Mosquito ~ Skimmer_Z + Days_Between_Z + (1 | Date), ziformula = ~., family = truncated_nbinom2(), data = abundance.df)
 
 # All three
-mosq.cand.models[[7]] <- glmmTMB(Mosquito ~ Temp_Zscore * Skimmer_Z + Days_Between_Z + (1 | Pool_ID), ziformula = ~., family = truncated_nbinom2(), data = abundance.df)
+mosq.cand.models[[7]] <- glmmTMB(Mosquito ~ Temp_Zscore * Skimmer_Z + Days_Between_Z + (1 | Date), ziformula = ~., family = truncated_nbinom2(), data = abundance.df)
 
 mod.names <- paste("mod", 1:length(mosq.cand.models), sep = " " )
 aictab(cand.set = mosq.cand.models, modnames = mod.names, sort = TRUE)
@@ -182,7 +193,7 @@ Running this with flood height instead of time since last flood doesn't change t
 
 ```{r, echo = FALSE, warnings = FALSE}
 plot1.df <- broom::tidy(mosq.cand.models[[4]])
-library(lme4)
+library(performance)
 r2(mosq.cand.models[[4]]) # marginal r2 = 0.968, how is that even possible?
 # Issue is with pool level random effect?
 plot1.df$model <- c("nbinom", "nbinom", "nbinom", "nbinom", "zi", "zi", "zi", "zi", "cond", "zi")
