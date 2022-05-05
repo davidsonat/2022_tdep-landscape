@@ -117,7 +117,7 @@ interaction.plot <- ggplot(data = abundance3.df, aes(y = Mosquito, x = drgn_pres
   geom_point(size = 5) +
   geom_errorbar(aes(ymin = Mosquito - std.err, ymax = Mosquito + std.err), width = 0.25, size = 0.75) +
   theme_classic( base_size = 24, base_line_size = 1 ) +   
-  scale_y_continuous(expand = c(0,0)) +
+  scale_y_log10(expand = c(0,0)) +
   xlab("Dragonfly Nymphs") +
   ylab("Mosquito Abundance") +
   theme(panel.grid.major = element_blank(),
