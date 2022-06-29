@@ -10,9 +10,7 @@ output:
 ```{r, echo = FALSE, warning = FALSE}
 temponly.df <- read.csv("temperature_data.csv")
 abiotic.df <- read.csv("abiotic_data.csv")
-slabs.df <- read.csv("slabno.csv")
 temp.df <- merge(temponly.df, abiotic.df)
-temp.df <- merge(temp.df, slabs.df)
 ```
 
 # Histograms
