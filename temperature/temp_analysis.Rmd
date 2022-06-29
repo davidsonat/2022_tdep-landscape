@@ -304,7 +304,7 @@ coeff.plot <- dwplot(plot1.df,
          aspect.ratio = 1,
          legend.position = "none")
 
-ggsave( "Fig2.png",
+ggsave( "../figs/Fig2.png",
         plot = coeff.plot,
         width = 164,
         height = 164,
@@ -402,50 +402,50 @@ saveRDS(mod21, "temp_model.rds")
 This section is deprecated with the realization that Pool ID is as good of a random effect as lat/long. Preserving the code here for posterity.
 
 ```{r, eval = FALSE, echo = FALSE}
-library(sp)
-coordinates(temp.df) <- ~long + lat
-bubble(temp.df, "residual")
-
-temp.df$pos <- numFactor(temp.df$long, temp.df$lat)
-temp.df$group <- factor(rep(1, nrow(temp.df)))
-
-library(sjPlot)
-spatial.glmm <- glmmTMB(MaxWTemp_C ~ logDepth * Pct_Shaded + ( 1 | MaxRTemp_C ) + exp(pos + 0 | group), data = temp.df )
-tab_model(spatial.glmm, show.aic = TRUE, show.loglik = TRUE)
-
-library(DHARMa)
-DHARMa::testDispersion(spatial.glmm)
-DHARMa::testDispersion(spatial.glmm, type="PearsonChisq", 
-         alternative="greater")
-sim.resids <- DHARMa::simulateResiduals(spatial.glmm, 250)
-plot(sim.resids)
-model_performance(spatial.glmm)
-r.squaredGLMM(spatial.glmm)
-
-model_list <- nlist(mod16, mod18, mod19, mod20, mod21, mod22, spatial.glmm)
-aic_table <- aictab(model_list)
-model_vars <- sapply(model_list, function(x) gsub(":", "*", paste(names(x$frame), collapse = " + ")))
-aic_table <- cbind(Modnames = names(model_vars), model_vars) %>%
-  merge(aic_table, by = "Modnames") %>%
-  arrange(AICc)
-aic_table
-
-spatial.glmm2 <- glmmTMB(MaxWTemp_C ~ logDepth * Pct_Shaded + ( 1 | MaxRTemp_C ) + ( 1 | Pool_ID ) + exp(pos + 0 | group), data = temp.df )
-tab_model(spatial.glmm2, show.aic = TRUE, show.loglik = TRUE)
-
-spatial.glmm3 <- glmmTMB(MaxWTemp_C ~ logDepth * Pct_Shaded * MaxRTemp_C + ( 1 | Pool_ID ) + exp(pos + 0 | group), data = temp.df )
-tab_model(spatial.glmm3, show.aic = TRUE, show.loglik = TRUE)
-
-model_list <- nlist(mod16, mod18, mod19, mod20, mod21, mod22, spatial.glmm, spatial.glmm2, spatial.glmm3)
-aic_table <- aictab(model_list)
-model_vars <- sapply(model_list, function(x) gsub(":", "*", paste(names(x$frame), collapse = " + ")))
-aic_table <- cbind(Modnames = names(model_vars), model_vars) %>%
-  merge(aic_table, by = "Modnames") %>%
-  arrange(AICc)
-aic_table
-
-temp.df$slab <- as.factor(temp.df$slab)
-slabs.glmm <- glmmTMB(MaxWTemp_C ~ logDepth * Pct_Shaded + ( 1 | Date) + ( 1 | slab), data = temp.df )
-tab_model(slabs.glmm, show.aic = TRUE, show.loglik = TRUE)
+# library(sp)
+# coordinates(temp.df) <- ~long + lat
+# bubble(temp.df, "residual")
+# 
+# temp.df$pos <- numFactor(temp.df$long, temp.df$lat)
+# temp.df$group <- factor(rep(1, nrow(temp.df)))
+# 
+# library(sjPlot)
+# spatial.glmm <- glmmTMB(MaxWTemp_C ~ logDepth * Pct_Shaded + ( 1 | MaxRTemp_C ) + exp(pos + 0 | group), data = temp.df )
+# tab_model(spatial.glmm, show.aic = TRUE, show.loglik = TRUE)
+# 
+# library(DHARMa)
+# DHARMa::testDispersion(spatial.glmm)
+# DHARMa::testDispersion(spatial.glmm, type="PearsonChisq", 
+#          alternative="greater")
+# sim.resids <- DHARMa::simulateResiduals(spatial.glmm, 250)
+# plot(sim.resids)
+# model_performance(spatial.glmm)
+# r.squaredGLMM(spatial.glmm)
+# 
+# model_list <- nlist(mod16, mod18, mod19, mod20, mod21, mod22, spatial.glmm)
+# aic_table <- aictab(model_list)
+# model_vars <- sapply(model_list, function(x) gsub(":", "*", paste(names(x$frame), collapse = " + ")))
+# aic_table <- cbind(Modnames = names(model_vars), model_vars) %>%
+#   merge(aic_table, by = "Modnames") %>%
+#   arrange(AICc)
+# aic_table
+# 
+# spatial.glmm2 <- glmmTMB(MaxWTemp_C ~ logDepth * Pct_Shaded + ( 1 | MaxRTemp_C ) + ( 1 | Pool_ID ) + exp(pos + 0 | group), data = temp.df )
+# tab_model(spatial.glmm2, show.aic = TRUE, show.loglik = TRUE)
+# 
+# spatial.glmm3 <- glmmTMB(MaxWTemp_C ~ logDepth * Pct_Shaded * MaxRTemp_C + ( 1 | Pool_ID ) + exp(pos + 0 | group), data = temp.df )
+# tab_model(spatial.glmm3, show.aic = TRUE, show.loglik = TRUE)
+# 
+# model_list <- nlist(mod16, mod18, mod19, mod20, mod21, mod22, spatial.glmm, spatial.glmm2, spatial.glmm3)
+# aic_table <- aictab(model_list)
+# model_vars <- sapply(model_list, function(x) gsub(":", "*", paste(names(x$frame), collapse = " + ")))
+# aic_table <- cbind(Modnames = names(model_vars), model_vars) %>%
+#   merge(aic_table, by = "Modnames") %>%
+#   arrange(AICc)
+# aic_table
+# 
+# temp.df$slab <- as.factor(temp.df$slab)
+# slabs.glmm <- glmmTMB(MaxWTemp_C ~ logDepth * Pct_Shaded + ( 1 | Date) + ( 1 | slab), data = temp.df )
+# tab_model(slabs.glmm, show.aic = TRUE, show.loglik = TRUE)
 ```
 

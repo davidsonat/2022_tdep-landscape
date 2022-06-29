@@ -1,3 +1,11 @@
+---
+title: "pantala_FR"
+author: "Andy"
+date: '2022-06-29'
+output: html_document
+---
+
+```{r}
 #Load required packages
 require(emdbook)
 require(bbmle)
@@ -7,8 +15,8 @@ require(plyr)
 require(Hmisc)
 require(broom)
 
-frdat <- read.csv("TDFR_Pantala-Atro_data.csv")
-source("ModelingFunctions.R")
+frdat <- read.csv("../pantala/TDFR_Pantala-Atro_data.csv")
+source("../pantala/ModelingFunctions.R")
 
 
 frdat$TempK <- frdat$Temp + 273.15
@@ -30,11 +38,11 @@ exp(coef(frfit_pan))
 summary(frfit_pan)
 
 parms_pan <- tidy(frfit_pan)
-write.csv(parms_pan,"Parms_Pan_FR.csv",row.names=FALSE)
+write.csv(parms_pan,"../pantala/Parms_Pan_FR.csv",row.names=FALSE)
 
 ############# Functional Response Plots
 
-predparms <- read.csv( "Parms_Pan_FR_Wide.csv" )
+predparms <- read.csv( "../pantala/Parms_Pan_FR_Wide.csv" )
 
 N0_vec <- seq( 0, 125, by = 1 )
 TempK_fac <- c( 293.15, 297.15, 301.15, 305.15, 309.15 )
@@ -86,7 +94,7 @@ ddep.plot <- ggplot( data.frame( N0 = c( 0, 120 ) ), aes( N0 ) ) +
   theme( panel.border = element_rect( color = "black", fill = NA, size = 0.75 ),
          aspect.ratio = 1 )
 
-ggsave( "FRFig.png",
+ggsave( "../pantala/fr_out.png",
         plot = ddep.plot,
         units = c( "mm" ),
         dpi = 300 )
@@ -94,8 +102,8 @@ ggsave( "FRFig.png",
 
 ############ Model Runs
 
-PreyDev.df <- read.csv( "Parms_PreyDev.csv" )
-PreyMort.df <- read.csv( "Parms_PreyMort.csv" )
+PreyDev.df <- read.csv( "../pantala/Parms_PreyDev.csv" )
+PreyMort.df <- read.csv( "../pantala/Parms_PreyMort.csv" )
 
 # Set prediction interval
 temp <- seq( 20, 36 )
@@ -112,19 +120,17 @@ Summary <- mat.or.vec( num_reps * length( temp ), 6 ) # Creates a matrix of r_de
 colnames( Summary ) <- c( "rep", "b", "h0", "Eh", "temp", "num_survive" ) # Names the columns in the matrix
 
 #Parameter estimates:
-Parms <- read.csv( "Parms_Pan_FR.csv" )
-Parms$spp <- as.factor(Parms$spp)
+Parms <- read.csv( "../pantala/Parms_Pan_FR.csv" )
 Parms$term <- as.factor(Parms$term)
-Parms$std.error <- as.numeric(Parms$std.error)
 
 
 #Some constants:
 k <- 8.617e-5
 bh <- 0.75
 t <- 1
-M <- Parms[ 4, 3 ]
-T0 <- Parms[ 5, 3 ]
-Tl <- Parms[ 6, 3 ]
+M <- predparms[ 1, 5 ]
+T0 <- predparms[ 1, 6 ]
+Tl <- predparms[ 1, 7 ]
 
 row <- 0
 u <- 1
@@ -170,7 +176,7 @@ for ( r in 1:num_reps ) {
 
 Pan_Summary.df <- as.data.frame( Summary )
 
-write.csv( Pan_Summary.df, "Output_PanSpp_PredTI.csv", row.names = FALSE)
+write.csv( Pan_Summary.df, "../pantala/Output_PanSpp.csv", row.names = FALSE)
 
 
 
@@ -178,42 +184,15 @@ write.csv( Pan_Summary.df, "Output_PanSpp_PredTI.csv", row.names = FALSE)
 
 ## Some data wrangling first
 
-pandat <- read.csv( "Output_PanSpp.csv" )
-pandat_preyTI <- read.csv( "Output_PanSpp_PreyTI.csv" )
-pandat_predTI <- read.csv( "Output_PanSpp_PredTI.csv" )
+modelout <- read.csv( "../pantala/Output_PanSpp.csv" )
 
-pandat$Tdep <- c( "Both" )
-pandat$Pred <- c( "Pantala" )
-
-pandat_preyTI$Tdep <- c( "Predator Only" )
-pandat_preyTI$Pred <- c( "Pantala" )
-
-pandat_predTI$Tdep <- c( "Prey Only" )
-pandat_predTI$Pred <- c( "Pantala" )
-
-
-modelout <- rbind( pandat, pandat_preyTI )
-modelout <- rbind( modelout, pandat_predTI )
-modelout$Tdep <- factor( modelout$Tdep, levels = c( "Prey Only", "Both", "Predator Only" ) )
-modelout <- subset(modelout, Tdep == "Both")
-
-
-modelfig <- ggplot( modelout, aes( x = temp, y = num_survive, colour = Tdep ) ) +
-  geom_smooth( aes( colour = Tdep ), size = 1  ) +
+modelfig <- ggplot( modelout, aes( x = temp, y = num_survive ) ) +
+  geom_smooth( size = 1  ) +
   scale_x_continuous( breaks = c( 20, 24, 28, 32, 36 ) ) +
   scale_y_continuous( expand = c( 0, 0 ) ) +
   coord_cartesian( ylim = c(25, 110)) +
-  scale_color_manual( name = "Temp Dependence", 
-                      values = c( "green3", "green3", "red2" ), 
-                      labels = c( "Prey", "Both", "Predator" ),
-                      guide = "legend" ) +
   theme_classic( base_size = 24, base_line_size = 1 ) + 
-  theme( legend.position = c( 0.25, 0.86 ),
-         legend.text = element_text( size = 14 ),
-         legend.title = element_text( size = 16 ),
-         legend.key = element_blank(),
-         legend.background = element_blank(),
-         panel.grid.major = element_blank(), 
+  theme( panel.grid.major = element_blank(), 
          panel.grid.minor = element_blank(),
          axis.line = element_line( colour = "black" ), 
          panel.spacing = unit( .05, "lines" ), 
@@ -225,4 +204,6 @@ modelfig <- ggplot( modelout, aes( x = temp, y = num_survive, colour = Tdep ) ) 
   theme( plot.margin = unit( c( 5.5, 7.5, 5.5, 5.5 ), unit = "mm" ) )
 
 
-ggsave( "modelfig2.png", plot = modelfig, units = c( "mm" ), dpi = 300 )
+ggsave( "../pantala/model_out.png", plot = modelfig, units = c( "mm" ), dpi = 300 )
+```
+
