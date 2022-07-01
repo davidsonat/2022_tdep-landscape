@@ -92,6 +92,7 @@ ddep.plot <- ggplot( data.frame( N0 = c( 0, 120 ) ), aes( N0 ) ) +
   scale_color_manual( "Temp (°C)", values = c( "blue", "green3", "yellow2", "orange2", "red2" ) ) +
   theme_classic( base_size = 16, base_line_size = 1 ) + 
   theme( panel.border = element_rect( color = "black", fill = NA, size = 0.75 ),
+         legend.position = "none",
          aspect.ratio = 1 )
 
 ggsave( "../pantala/fr_out.png",
@@ -191,7 +192,7 @@ modelfig <- ggplot( modelout, aes( x = temp, y = num_survive ) ) +
   scale_x_continuous( breaks = c( 20, 24, 28, 32, 36 ) ) +
   scale_y_continuous( expand = c( 0, 0 ) ) +
   coord_cartesian( ylim = c(25, 110)) +
-  theme_classic( base_size = 24, base_line_size = 1 ) + 
+  theme_classic( base_size = 16, base_line_size = 1 ) + 
   theme( panel.grid.major = element_blank(), 
          panel.grid.minor = element_blank(),
          axis.line = element_line( colour = "black" ), 
@@ -200,10 +201,13 @@ modelfig <- ggplot( modelout, aes( x = temp, y = num_survive ) ) +
          strip.background = element_rect( color = "black", size = 1 ) ) +
   xlab( "Temperature (°C)" ) +
   ylab( "Surviving Prey" ) +
-  theme( aspect.ratio = 1 ) +
-  theme( plot.margin = unit( c( 5.5, 7.5, 5.5, 5.5 ), unit = "mm" ) )
-
+  theme( aspect.ratio = 1 )
 
 ggsave( "../pantala/model_out.png", plot = modelfig, units = c( "mm" ), dpi = 300 )
+
+library(cowplot)
+Fig1.plot <- plot_grid(ddep.plot, modelfig, ncol = 1, align = c("v"), axis = c("l") )
+
+ggsave("../pantala/panelCD.png", plot = Fig1.plot, units = c( "mm" ), dpi = 300 )
 ```
 
