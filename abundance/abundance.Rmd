@@ -208,7 +208,7 @@ coeff.plot1 <- dwplot(coeff1.df,
        vline = geom_vline(xintercept = 0, colour = "grey80", linetype = 2, size = 1), 
        dot_args = list(size = 4, colour = "#F8766D"), 
        whisker_args = list(size = 0.75, colour = "#F8766D")) + 
-  theme_classic( base_size = 24, base_line_size = 1 ) + 
+  theme_classic( base_size = 16, base_line_size = 1 ) + 
   xlab("Coefficient Estimate") +
   theme( panel.border = element_rect( color = "black", fill = NA, size = 0.75 ),
          legend.position = "none",
@@ -219,20 +219,21 @@ coeff.plot2 <- dwplot(coeff2.df,
        vline = geom_vline(xintercept = 0, colour = "grey80", linetype = 2, size = 1), 
        dot_args = list(size = 4, colour = "#619CFF"), 
        whisker_args = list(size = 0.75, colour = "#619CFF")) + 
-  theme_classic( base_size = 24, base_line_size = 1 ) + 
+  theme_classic( base_size = 16, base_line_size = 1 ) + 
   xlab("Coefficient Estimate") +
   theme( panel.border = element_rect( color = "black", fill = NA, size = 0.75 ),
          legend.position = "none",
          aspect.ratio = 1)
 
+library(cowplot)
+Fig4.plot <- plot_grid( coeff.plot1, coeff.plot2,
+                        labels = c("a)", "b)"),
+                        nrow = 2,
+                        align = "hv" )
 
-ggsave( "../figs/Fig3.png",
-        plot = coeff.plot1,
-        units = c("mm"),
-        dpi = 300 )
 
-ggsave( "../figs/Fig4.png",
-        plot = coeff.plot2,
+ggsave( "Fig4.png",
+        plot = Fig4.plot,
         units = c("mm"),
         dpi = 300 )
 

@@ -188,7 +188,7 @@ write.csv( Pan_Summary.df, "../pantala/Output_PanSpp.csv", row.names = FALSE)
 modelout <- read.csv( "../pantala/Output_PanSpp.csv" )
 
 modelfig <- ggplot( modelout, aes( x = temp, y = num_survive ) ) +
-  geom_smooth( size = 1  ) +
+  geom_smooth( size = 1, colour = "red"  ) +
   scale_x_continuous( breaks = c( 20, 24, 28, 32, 36 ) ) +
   scale_y_continuous( expand = c( 0, 0 ) ) +
   coord_cartesian( ylim = c(25, 110)) +
