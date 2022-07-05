@@ -327,34 +327,38 @@ The zero-inflated negative binomial model has the lowest AIC. Dragonfly abundanc
 Now to play with additional variables of importance (e.g., days since last flood from Stunkle et al. 2021). It might also help to exclude temperature from the above model.
 
 ```{r, echo = FALSE}
-# dfly.cand.models <- list()
-# 
-# # Temperature alone
-# dfly.cand.models[[1]] <- glmmTMB(Skimmer_Dragonfly ~ Temp_Zscore + (1 | Pool_ID), ziformula = ~., family = truncated_nbinom2(), data = abundance.df)
-# 
-# # Shading alone
-# dfly.cand.models[[2]] <- glmmTMB(Skimmer_Dragonfly ~ Pct_Shaded_Z + (1 | Pool_ID), ziformula = ~., family = truncated_nbinom2(), data = abundance.df)
-# 
-# # Days since last flooding alone
-# dfly.cand.models[[3]] <- glmmTMB(Skimmer_Dragonfly ~ Days_Between_Z + (1 | Pool_ID), ziformula = ~., family = truncated_nbinom2(), data = abundance.df)
-# 
-# # Temperature and shading
-# dfly.cand.models[[4]] <- glmmTMB(Skimmer_Dragonfly ~ Temp_Zscore + Pct_Shaded_Z + (1 | Pool_ID), ziformula = ~., family = truncated_nbinom2(), data = abundance.df)
-# 
-# # Temperature and days since
-# dfly.cand.models[[5]] <- glmmTMB(Skimmer_Dragonfly ~ Temp_Zscore + Days_Between_Z + (1 | Pool_ID), ziformula = ~., family = truncated_nbinom2(), data = abundance.df)
-# 
-# # Shading and days since
-# dfly.cand.models[[6]] <- glmmTMB(Skimmer_Dragonfly ~ Pct_Shaded_Z + Days_Between_Z + (1 | Pool_ID), ziformula = ~., family = truncated_nbinom2(), data = abundance.df)
-# 
-# # All three
-# dfly.cand.models[[7]] <- glmmTMB(Skimmer_Dragonfly ~ Temp_Zscore + Pct_Shaded_Z + Days_Between_Z + (1 | Pool_ID), ziformula = ~., family = truncated_nbinom2(), data = abundance.df)
-# 
-# mod.names <- paste("mod", 1:length(dfly.cand.models), sep = " " )
-# aictab(cand.set = dfly.cand.models, modnames = mod.names, sort = TRUE)
-# 
-# summary(dfly.cand.models[[2]])
-# summary(dfly.cand.models[[6]])
+dfly.cand.models <- list()
+
+# Temperature alone
+dfly.cand.models[[1]] <- glmmTMB(Skimmer_Dragonfly ~ Temp_Zscore + (1 | Date), ziformula = ~., family = truncated_nbinom2(), data = abundance.df)
+
+# Shading alone
+dfly.cand.models[[2]] <- glmmTMB(Skimmer_Dragonfly ~ Pct_Shaded_Z + (1 | Date), ziformula = ~., family = truncated_nbinom2(), data = abundance.df)
+
+# Days since last flooding alone
+dfly.cand.models[[3]] <- glmmTMB(Skimmer_Dragonfly ~ Days_Between_Z + (1 | Date), ziformula = ~., family = truncated_nbinom2(), data = abundance.df)
+
+# Temperature and shading
+dfly.cand.models[[4]] <- glmmTMB(Skimmer_Dragonfly ~ Temp_Zscore + Pct_Shaded_Z + (1 | Date), ziformula = ~., family = truncated_nbinom2(), data = abundance.df)
+
+# Temperature and days since
+dfly.cand.models[[5]] <- glmmTMB(Skimmer_Dragonfly ~ Temp_Zscore + Days_Between_Z + (1 | Date), ziformula = ~., family = truncated_nbinom2(), data = abundance.df)
+
+# Shading and days since
+dfly.cand.models[[6]] <- glmmTMB(Skimmer_Dragonfly ~ Pct_Shaded_Z + Days_Between_Z + (1 | Date), ziformula = ~., family = truncated_nbinom2(), data = abundance.df)
+
+# All three
+dfly.cand.models[[7]] <- glmmTMB(Skimmer_Dragonfly ~ Temp_Zscore + Pct_Shaded_Z + Days_Between_Z + (1 | Date), ziformula = ~., family = truncated_nbinom2(), data = abundance.df)
+
+mod.names <- list()
+for (i in 1:length(dfly.cand.models)){
+mod.names[i] <- as.character(formula(dfly.cand.models[[i]], component = c("cond")))
+}
+aic_table <- aictab(cand.set = dfly.cand.models, modnames = unlist(mod.names), sort = TRUE)
+write.csv(aic_table, file = "../abundance/drgn_aic_table.csv")
+
+summary(dfly.cand.models[[2]])
+summary(dfly.cand.models[[6]])
 ```
 
 Models 2 and 6 do best (and are roughly equivalent), which include just shading (mod2) or shading and days since last flood (mod6). Both suggest that less shady pools  should have dragonflies (i.e., the zero-inflated component) but aren't predictors of abundance.
