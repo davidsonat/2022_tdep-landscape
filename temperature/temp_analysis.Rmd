@@ -158,130 +158,122 @@ Area and depth look like good predictors, as does maximum river temperature and 
 
 # Preliminary Modeling
 
-Let's try making a basic GLMM using these variables, with area and depth as fixed effects and maximum air temperature as a random effect. We'll take a stepwise approach to model selection.
+Let's try making a basic GLMM using these variables, with area, depth, shade, and river temp as fixed effects and pool ID as a random effect. We'll take a stepwise approach to model selection.
 
 ```{r, echo = FALSE, results = "hide", warning = FALSE}
 library(glmmTMB)
 library(performance)
+library(MuMIn)
+temp.cand.models <- list()
 
-# Depth, Area, Shade, and Air temp 
-mod1 <- glmmTMB(MaxWTemp_C ~ Depth_Z * SurfArea_Z * Pct_Shaded_Z + (1 | MaxATemp_Z), data = temp.df )
-summary(mod1)
+# Depth, Area, Shade, and River Temp 
+temp.cand.models[[1]] <- glmmTMB(MaxWTemp_C ~ Depth_Z * SurfArea_Z * Pct_Shaded_Z + MaxRTemp_Z + (1 | Pool_ID), data = temp.df )
 
-# Depth, Shade, and Air Temp
-mod2 <- glmmTMB(MaxWTemp_C ~ Depth_Z * Pct_Shaded_Z + (1 | MaxATemp_Z), data = temp.df )
-summary(mod2)
+# Depth, Area, Shade
+temp.cand.models[[2]] <- glmmTMB(MaxWTemp_C ~ Depth_Z * SurfArea_Z * Pct_Shaded_Z + (1 | Pool_ID), data = temp.df )
 
-# Area, Shade, and Air Temp
-mod3 <- glmmTMB(MaxWTemp_C ~ SurfArea_Z * Pct_Shaded_Z + (1 | MaxATemp_Z), data = temp.df )
-summary(mod3)
+# Depth, Area, River Temp
+temp.cand.models[[3]] <- glmmTMB(MaxWTemp_C ~ Depth_Z * SurfArea_Z + MaxRTemp_Z + (1 | Pool_ID), data = temp.df )
 
-# Depth, Shade, and Area
-mod4 <- glmmTMB(MaxWTemp_C ~ Depth_Z * SurfArea_Z * Pct_Shaded_Z, data = temp.df )
-summary(mod4)
+# Depth, Shade, River Temp
+temp.cand.models[[4]] <- glmmTMB(MaxWTemp_C ~ Depth_Z * Pct_Shaded_Z + MaxRTemp_Z + (1 | Pool_ID), data = temp.df )
 
-# Depth, Area, and Air Temp
-mod5 <- glmmTMB(MaxWTemp_C ~ Depth_Z * SurfArea_Z + (1 | MaxATemp_Z), data = temp.df )
-summary(mod5)
-
-# Depth and Shade
-mod6 <- glmmTMB(MaxWTemp_C ~ Depth_Z * Pct_Shaded_Z, data = temp.df )
-summary(mod6)
-
-# Depth and Air Temp
-mod7 <- glmmTMB(MaxWTemp_C ~ Depth_Z + (1 | MaxATemp_Z), data = temp.df )
-summary(mod7)
+# Area, Shade, River Temp
+temp.cand.models[[5]] <- glmmTMB(MaxWTemp_C ~ SurfArea_Z * Pct_Shaded_Z + MaxRTemp_Z + (1 | Pool_ID), data = temp.df )
 
 # Depth and Area
-mod8 <- glmmTMB(MaxWTemp_C ~ Depth_Z * SurfArea_Z, data = temp.df )
-summary(mod8)
+temp.cand.models[[6]] <- glmmTMB(MaxWTemp_C ~ Depth_Z * SurfArea_Z + (1 | Pool_ID), data = temp.df )
+
+# Depth and Shade
+temp.cand.models[[7]] <- glmmTMB(MaxWTemp_C ~ Depth_Z * Pct_Shaded_Z + (1 | Pool_ID), data = temp.df )
+
+# Depth and River Temp
+temp.cand.models[[8]] <- glmmTMB(MaxWTemp_C ~ Depth_Z + MaxRTemp_Z + (1 | Pool_ID), data = temp.df )
 
 # Area and Shade
-mod9 <- glmmTMB(MaxWTemp_C ~ SurfArea_Z * Pct_Shaded_Z, data = temp.df )
-summary(mod9)
+temp.cand.models[[9]] <- glmmTMB(MaxWTemp_C ~ SurfArea_Z * Pct_Shaded_Z + (1 | Pool_ID), data = temp.df )
 
-# Area and Air Temp
-mod10 <- glmmTMB(MaxWTemp_C ~ SurfArea_Z + (1 | MaxATemp_Z), data = temp.df )
-summary(mod10)
+# Area and River Temp
+temp.cand.models[[10]] <- glmmTMB(MaxWTemp_C ~ SurfArea_Z + MaxRTemp_Z + (1 | Pool_ID), data = temp.df )
 
-# Shade and Air Temp
-mod11 <- glmmTMB(MaxWTemp_C ~ Pct_Shaded_Z + (1 | MaxATemp_Z), data = temp.df )
-summary(mod11)
-
-# Area alone
-mod12 <- glmmTMB(MaxWTemp_C ~ SurfArea_Z, data = temp.df )
-summary(mod12)
-
-# Shade alone
-mod13 <- glmmTMB(MaxWTemp_C ~ Pct_Shaded_Z, data = temp.df )
-summary(mod13)
+# Shade and River Temp
+temp.cand.models[[11]] <- glmmTMB(MaxWTemp_C ~ Pct_Shaded_Z + MaxRTemp_Z + (1 | Pool_ID), data = temp.df )
 
 # Depth alone
-mod14 <- glmmTMB(MaxWTemp_C ~ Depth_Z, data = temp.df )
-summary(mod14)
+temp.cand.models[[12]] <- glmmTMB(MaxWTemp_C ~ Depth_Z + (1 | Pool_ID), data = temp.df )
 
-# Air Temp alone
-mod15 <- glmmTMB(MaxWTemp_C ~ (1 | MaxATemp_Z), data = temp.df )
-summary(mod15)
-```
+# Area alone
+temp.cand.models[[13]] <- glmmTMB(MaxWTemp_C ~ SurfArea_Z + (1 | Pool_ID), data = temp.df )
 
-Model 2, which excludes area but includes depth, has the lowest AIC. It indicates that depth and shade both negatively impact maximum water temperatures, and there is an interaction - deep, shady pools are probably especially cool. Additionally, maximum air temperature does pull out as a significant random effect.
+# Shade alone
+temp.cand.models[[14]] <- glmmTMB(MaxWTemp_C ~ Pct_Shaded_Z + (1 | Pool_ID), data = temp.df )
 
-Curiously, the max air temperature for two of the dates is the same, so I tried it with date as a random effect instead of air temperature, which returned a lower AIC value than model 2. It's likely that date accounts for more variation in other atmospheric conditions (i.e., temperature variation and mean) than maximum air temperature alone does. 
+# River temp alone
+temp.cand.models[[15]] <- glmmTMB(MaxWTemp_C ~ MaxRTemp_Z + (1 | Pool_ID), data = temp.df )
 
-Water temperature data for the river is unavailable through the usual sources at the Westham Gage. Cartersville is available, and using max river temps from there in place of date returns similar AIC values. This might be a better predictive covariate than date and may help capture some of longer term variation in atmospheric conditions.
 
-```{r, echo = FALSE, results = "hide", warning = FALSE}
-# River Temp as a random effect instead of date/air temp
-library(MuMIn)
-mod16 <- glmmTMB(MaxWTemp_C ~ Depth_Z * Pct_Shaded_Z + ( 1 | MaxRTemp_Z ), data = temp.df )
-summary(mod16)
-temp.df$residual <- residuals(mod16)
-r.squaredGLMM(mod16)
+# ## Without Pool ID random effect
+# # Depth, Area, Shade, and River Temp 
+# temp.cand.models[[16]] <- glmmTMB(MaxWTemp_C ~ Depth_Z * SurfArea_Z * Pct_Shaded_Z + MaxRTemp_Z, data = temp.df )
+# 
+# # Depth, Area, Shade
+# temp.cand.models[[17]] <- glmmTMB(MaxWTemp_C ~ Depth_Z * SurfArea_Z * Pct_Shaded_Z, data = temp.df )
+# 
+# # Depth, Area, River Temp
+# temp.cand.models[[18]] <- glmmTMB(MaxWTemp_C ~ Depth_Z * SurfArea_Z + MaxRTemp_Z, data = temp.df )
+# 
+# # Depth, Shade, River Temp
+# temp.cand.models[[19]] <- glmmTMB(MaxWTemp_C ~ Depth_Z * Pct_Shaded_Z + MaxRTemp_Z, data = temp.df )
+# 
+# # Area, Shade, River Temp
+# temp.cand.models[[20]] <- glmmTMB(MaxWTemp_C ~ SurfArea_Z * Pct_Shaded_Z + MaxRTemp_Z, data = temp.df )
+# 
+# # Depth and Area
+# temp.cand.models[[21]] <- glmmTMB(MaxWTemp_C ~ Depth_Z * SurfArea_Z, data = temp.df )
+# 
+# # Depth and Shade
+# temp.cand.models[[22]] <- glmmTMB(MaxWTemp_C ~ Depth_Z * Pct_Shaded_Z, data = temp.df )
+# 
+# # Depth and River Temp
+# temp.cand.models[[23]] <- glmmTMB(MaxWTemp_C ~ Depth_Z + MaxRTemp_Z, data = temp.df )
+# 
+# # Area and Shade
+# temp.cand.models[[24]] <- glmmTMB(MaxWTemp_C ~ SurfArea_Z * Pct_Shaded_Z, data = temp.df )
+# 
+# # Area and River Temp
+# temp.cand.models[[25]] <- glmmTMB(MaxWTemp_C ~ SurfArea_Z + MaxRTemp_Z, data = temp.df )
+# 
+# # Shade and River Temp
+# temp.cand.models[[26]] <- glmmTMB(MaxWTemp_C ~ Pct_Shaded_Z + MaxRTemp_Z, data = temp.df )
+# 
+# # Depth alone
+# temp.cand.models[[27]] <- glmmTMB(MaxWTemp_C ~ Depth_Z, data = temp.df )
+# 
+# # Area alone
+# temp.cand.models[[28]] <- glmmTMB(MaxWTemp_C ~ SurfArea_Z, data = temp.df )
+# 
+# # Shade alone
+# temp.cand.models[[29]] <- glmmTMB(MaxWTemp_C ~ Pct_Shaded_Z, data = temp.df )
+# 
+# # River temp alone
+# temp.cand.models[[30]] <- glmmTMB(MaxWTemp_C ~ MaxRTemp_Z, data = temp.df )
 ```
 
 Continuous, untransformed shade actually provides a lower AIC value than binning it (0-20%, 20-40%, 40-60%, 60-80%, 80-100%) or arcsine transforming it.
 
 Including distance from river channel improves things too, but only marginally, and oddly, the parameter estimates for it aren't significant.
 
-```{r, echo = FALSE, eval  = FALSE, results = "hide", warning = FALSE}
-# mod17 <- glmmTMB(MaxWTemp_C ~ Depth_Z * Pct_Shaded_Z * DistRC_Z + ( 1 | MaxRTemp_Z ), data = temp.df )
-# summary(mod17)
-# r.squaredGLMM(mod17)
-```
-
-Some other suggestions: river temperature as a fixed effect instead of a random effect, and pool ID as a random effect.
-
-```{r, echo = FALSE, results = "hide", warning = FALSE}
-temp.df$Pool_ID <- as.factor(temp.df$Pool_ID)
-mod18 <- glmmTMB(MaxWTemp_C ~ Depth_Z * Pct_Shaded_Z + ( 1 | MaxRTemp_Z ) + (1 | Pool_ID), data = temp.df )
-summary(mod18)
-r.squaredGLMM(mod18)
-
-mod19 <- glmmTMB(MaxWTemp_C ~ Depth_Z * Pct_Shaded_Z + (1 | Pool_ID), data = temp.df )
-summary(mod19)
-r.squaredGLMM(mod19)
-
-mod20 <- glmmTMB(MaxWTemp_C ~ Depth_Z * Pct_Shaded_Z * MaxRTemp_Z, data = temp.df )
-summary(mod20)
-
-mod21 <- glmmTMB(MaxWTemp_C ~ Depth_Z * Pct_Shaded_Z + MaxRTemp_Z + (1 | Pool_ID), data = temp.df )
-summary(mod21)
-r.squaredGLMM(mod21)
-```
-
 ```{r, echo = FALSE, warning = FALSE}
 library(AICcmodavg)
 library(dplyr)
 library(reshape2)
 library(kimisc)
-model_list <- nlist(mod1, mod2, mod3, mod4, mod5, mod6, mod7, mod8, mod9, mod10, mod11, mod12, mod13, mod14, mod15, mod16, mod18, mod19, mod20, mod21)
-aic_table <- aictab(model_list)
-model_vars <- sapply(model_list, function(x) gsub(":", "*", paste(names(x$frame), collapse = " + ")))
-aic_table <- cbind(Modnames = names(model_vars), model_vars) %>%
-  merge(aic_table, by = "Modnames") %>%
-  arrange(AICc)
-aic_table
+mod.names <- list()
+for (i in 1:length(temp.cand.models)){
+mod.names[i] <- as.character(formula(temp.cand.models[[i]], component = c("cond")))
+}
+aic_table <- aictab(cand.set = temp.cand.models, modnames = unlist(mod.names), sort = TRUE)
+write.csv(aic_table, file = "../temperature/aic_table.csv")
 ```
 
 Ultimately, the best model includes Pool ID as a random effect, and river temperature as a fixed effect. Its AIC is 977.9 (nothing else comes particularly close), with a marginal r^2^ of 0.52 and a conditional of 0.87. It's worth noting that Pool ID and lat/long coords (outlined below) are virtually interchangeable here, so we will use Pool ID because it makes the math and interpretation simpler.

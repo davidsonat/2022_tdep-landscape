@@ -36,6 +36,9 @@ abundance.df$Temp_StdErr <- NULL
 abundance2.df <- abundance.df[,2:11]
 abundance2.df$Temp_Predicted_C <- NULL
 abundance2.df$Date <- NULL
+abundance.df$Skimmer_Z <- (abundance.df$Skimmer_Dragonfly - mean(abundance.df$Skimmer_Dragonfly))/sd(abundance.df$Skimmer_Dragonfly)
+abundance.df$Days_Between_Z <- (abundance.df$Days_Between_Flood_Sampling - mean(abundance.df$Days_Between_Flood_Sampling))/sd(abundance.df$Days_Between_Flood_Sampling)
+
 
 library(GGally)
 ggpairs(abundance2.df)
@@ -45,7 +48,6 @@ ggpairs(abundance2.df)
 ### Standard Poisson GLMM
 
 ```{r, echo = FALSE}
-abundance.df$Skimmer_Z <- (abundance.df$Skimmer_Dragonfly - mean(abundance.df$Skimmer_Dragonfly))/sd(abundance.df$Skimmer_Dragonfly)
 
 mosq_poisson <- glmmTMB(Mosquito ~ Skimmer_Z * Temp_Zscore + (1 | Pool_ID), family = poisson(), data = abundance.df )
 summary(mosq_poisson)
@@ -137,7 +139,6 @@ Note: a temperature Z score of 1 means that the pool reaches a daily maximum tem
 ## Models Including Flooding and Other Variables
 
 ```{r, echo = FALSE}
-abundance.df$Days_Between_Z <- (abundance.df$Days_Between_Flood_Sampling - mean(abundance.df$Days_Between_Flood_Sampling))/sd(abundance.df$Days_Between_Flood_Sampling)
 
 mosq_days <- glmmTMB(Mosquito ~ Skimmer_Z * Temp_Zscore + Days_Between_Z + (1 | Pool_ID), ziformula = ~., family = truncated_nbinom2, data = abundance.df )
 summary(mosq_days)
@@ -180,8 +181,12 @@ mosq.cand.models[[6]] <- glmmTMB(Mosquito ~ Skimmer_Z + Days_Between_Z + (1 | Da
 # All three
 mosq.cand.models[[7]] <- glmmTMB(Mosquito ~ Temp_Zscore * Skimmer_Z + Days_Between_Z + (1 | Date), ziformula = ~., family = truncated_nbinom2(), data = abundance.df)
 
-mod.names <- paste("mod", 1:length(mosq.cand.models), sep = " " )
-aictab(cand.set = mosq.cand.models, modnames = mod.names, sort = TRUE)
+mod.names <- list()
+for (i in 1:length(mosq.cand.models)){
+mod.names[i] <- as.character(formula(mosq.cand.models[[i]], component = c("cond")))
+}
+aic_table <- aictab(cand.set = mosq.cand.models, modnames = unlist(mod.names), sort = TRUE)
+write.csv(aic_table, file = "../abundance/aic_table.csv")
 
 summary(mosq.cand.models[[4]])
 ```
