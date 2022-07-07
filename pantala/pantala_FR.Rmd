@@ -15,11 +15,14 @@ require(plyr)
 require(Hmisc)
 require(broom)
 
-frdat <- read.csv("../pantala/TDFR_Pantala-Atro_data.csv")
 source("../pantala/ModelingFunctions.R")
-
-
+frdat <- read.csv("../pantala/TDFR_Pantala-Atro_data.csv")
 frdat$TempK <- frdat$Temp + 273.15
+```
+
+# Fitting the FR
+
+```{r}
 sv.log <- list(b=log(1.105563e-01), h0 = log(1.99775e-14), Eh = log(0.65))
 
 frfit_pan <-
@@ -38,10 +41,10 @@ exp(coef(frfit_pan))
 summary(frfit_pan)
 
 parms_pan <- tidy(frfit_pan)
-write.csv(parms_pan,"../pantala/Parms_Pan_FR.csv",row.names=FALSE)
+# write.csv(parms_pan,"../pantala/Parms_Pan_FR.csv",row.names=FALSE)
+```
 
-############# Functional Response Plots
-
+```{r}
 predparms <- read.csv( "../pantala/Parms_Pan_FR_Wide.csv" )
 
 N0_vec <- seq( 0, 125, by = 1 )
@@ -95,20 +98,23 @@ ddep.plot <- ggplot( data.frame( N0 = c( 0, 120 ) ), aes( N0 ) ) +
          legend.position = "none",
          aspect.ratio = 1 )
 
-ggsave( "../pantala/fr_out.png",
-        plot = ddep.plot,
-        units = c( "mm" ),
-        dpi = 300 )
+# ggsave( "../pantala/fr_out.png",
+#         plot = ddep.plot,
+#         units = c( "mm" ),
+#         dpi = 300 )
+```
 
 
-############ Model Runs
+# Running the Model
+
+```{r}
+# First, full model with both pred and prey tdep
 
 PreyDev.df <- read.csv( "../pantala/Parms_PreyDev.csv" )
 PreyMort.df <- read.csv( "../pantala/Parms_PreyMort.csv" )
 
 # Set prediction interval
 temp <- seq( 20, 36 )
-ti_vec <- rep(20, length(temp))
 
 # Vector of temperature-dependent transition rates
 rvec <- ( ( arr.rate( c_dev = PreyDev.df[ 1, 2 ], b_dev = PreyDev.df[ 2, 2 ], temp ) ) * 5 )
@@ -177,18 +183,148 @@ for ( r in 1:num_reps ) {
 
 Pan_Summary.df <- as.data.frame( Summary )
 
-write.csv( Pan_Summary.df, "../pantala/Output_PanSpp.csv", row.names = FALSE)
+# write.csv( Pan_Summary.df, "../pantala/Output_PanSpp.csv", row.names = FALSE)
+```
+
+```{r}
+# Model with temperature effect ONLY; pred is TI held @ 20C
+Stage_pred_devel <-
+  function( timesteps,# Number of timesteps for the simulation
+           N_vec,# Vector of individuals in each size/stage class at the current time
+           mval,# Temperature-dependent prey mortality rate
+           rval, # Temperature-dependent prey development rate
+           bval,# A fitted constant, part of the equation for attack rate from Sentis et al. 2012
+           T0val,# The lower temperature bound for attack rate
+           Tlval,# The upper temperature bound for attack rate
+           h0val,# A fitted constant, part of the equation for handling time from Sentis et al. 2012
+           bhval,# The constant for body mass-scaling, 0.75
+           Ehval, # A fitted activation energy, part of the equation for handling time from Sentis et al. 2012
+           Mval, # Avg. predator body mass
+           kval, # Part of the equation for handling time from Sentis et al. 2012; this is a constant set to 8.617e-5
+           tval, # Time to evaluate the functional response for, default is 1
+           tempval ) {
+    emerge <- 0
+    new_N_vec <- mat.or.vec( 1, length( N_vec ) ) # Creates a vector to store the prey densities for the next time step
+    for ( i in 1:timesteps ){
+      # The first loop runs the model for the number of timesteps specified above
+      
+      for ( j in 2:4 ){ # This loop handles prey development
+        #At each timestep a percentage of our larvae in each box moves to the next box according to r, the development rate
+        new_N_vec[ j ] <-
+          N_vec[ j ] + rval * N_vec[ j - 1 ] - rval * new_N_vec[ j ] # Each cell gains from the cell on the left, and loses to the right.
+      }
+      
+      new_N_vec[ 1 ] <-
+        N_vec[ 1 ] - rval * N_vec[ 1 ] # The first cell can only lose individuals w/o reproduction
+      emerge <-
+        emerge + rval * N_vec[ 5 ] # Larvae that made it to pupation last time step emerge
+      new_N_vec[ 5 ] <-
+        N_vec[ 5 ] + rval * N_vec[ 4 ] - rval * N_vec[ 5 ] # The last cell gains from cell 4, then loses individuals that emerge
+      
+      # Calculate p, the proportion of prey eaten, based on current density of prey and temp
+      preykilled <- rogers.sentis(
+        N0 = sum( N_vec ),
+        b = bval,
+        T0 = T0val,
+        Tl = Tlval,
+        h0 = h0val,
+        M = Mval,
+        bh = bhval,
+        Eh = Ehval,
+        k = kval,
+        TempK = 28 + 273.15,
+        t = tval
+      )
+      
+      p <- ifelse( sum( new_N_vec ) == 0, 0, preykilled / sum( new_N_vec ) )
+      p <- ifelse( p > 1, 1, p )
+
+      # Predation/mortality
+      
+      new_N_vec <-
+        new_N_vec - ( p * new_N_vec )
+      new_N_vec <- 
+        new_N_vec - ( mval * new_N_vec )
+      N_vec <-
+        new_N_vec #At the end of the loop, N_vec (the number of larvae at the most recent time step) is updated with the new values stored in new_N_vec.
+    }
+    return( emerge )
+  }
 
 
+ti_vec <- rep(28, length(temp))
+# Vector of temperature-dependent transition rates
+rvec <- ( ( arr.rate( c_dev = PreyDev.df[ 1, 2 ], b_dev = PreyDev.df[ 2, 2 ], ti_vec ) ) * 5 )
 
+# Vector of temperature-dependent mortality rates
+mvec <- logisticfun( ti_vec, r_mort = PreyMort.df[ 3, 2 ], x1 = PreyMort.df[ 1, 2 ], y1 = PreyMort.df[ 2, 2 ] )
+
+Summary <- mat.or.vec( num_reps * length( temp ), 6 ) # Creates a matrix of r_dev and p values for storing the model output, with five columns
+colnames( Summary ) <- c( "rep", "b", "h0", "Eh", "temp", "num_survive" ) # Names the columns in the matrix
+
+row <- 0
+u <- 1
+seednum <- 1
+
+for ( r in 1:num_reps ) {
+  set.seed( 1 + r )
+  
+  b <- rlnorm( 1, meanlog = Parms$estimate[ which( Parms$term == "b" ) ],
+               sdlog = Parms$std.error[ which( Parms$term == "b" ) ] )
+  h0 <- rlnorm( 1, meanlog = Parms$estimate[ which( Parms$term == "h0" ) ],
+                sdlog = Parms$std.error[ which( Parms$term == "h0" ) ] )
+  Eh <- rlnorm( 1, meanlog = Parms$estimate[ which( Parms$term == "Eh" ) ],
+                sdlog = Parms$std.error[ which( Parms$term == "Eh" ) ] )
+  
+  for ( l in 1:length( temp ) ) {
+    row <- row + 1
+    N_vec <- c( 300, 0, 0, 0, 0) #Vector of prey abundance at each size class at the current time step. This starts with 1000 1st instar larvae.
+    Summary[ row, "b" ] <- b
+    Summary[ row, "Eh" ] <- Eh
+    Summary[ row, "h0" ] <- h0
+    Summary[ row, "rep" ] = r #rep number
+    Summary[ row, "temp" ] = temp[ l ] #Temperature for this loop
+    Summary[ row, "num_survive" ] = Stage_pred_devel(
+      timesteps = 30,
+      N_vec,
+      mval = mvec[ l ],
+      rval = rvec[ l ],
+      bval = b,
+      T0val = T0,
+      Tlval = Tl,
+      h0val = h0,
+      bhval = bh,
+      Ehval = Eh,
+      Mval = M,
+      kval = k,
+      tval = t,
+      tempval = temp[ l ]
+    )
+  }
+}
+
+
+Pan_Summary2.df <- as.data.frame( Summary )
+
+write.csv( Pan_Summary2.df, "../pantala/Output_PanSpp_MEANTEMP.csv", row.names = FALSE)
+```
+
+
+# Plotting Model Output
+
+```{r}
 ######## Plots
 
 ## Some data wrangling first
 
 modelout <- read.csv( "../pantala/Output_PanSpp.csv" )
+Pan_Summary2.df$num_survive_mean <- Pan_Summary2.df$num_survive
+modelout <- cbind(modelout, Pan_Summary2.df$num_survive_mean)
+colnames(modelout) <- c("rep", "b", "h0", "Eh", "temp", "num_survive", "num_survive_mean")
 
 modelfig <- ggplot( modelout, aes( x = temp, y = num_survive ) ) +
-  geom_smooth( size = 1, colour = "red"  ) +
+  geom_smooth( size = 1, colour = "black"  ) +
+  geom_smooth( size = 1, colour = "red", aes( x = temp, y = num_survive_mean ) ) +
   scale_x_continuous( breaks = c( 20, 24, 28, 32, 36 ) ) +
   scale_y_continuous( expand = c( 0, 0 ) ) +
   coord_cartesian( ylim = c(25, 110)) +
@@ -203,6 +339,8 @@ modelfig <- ggplot( modelout, aes( x = temp, y = num_survive ) ) +
   ylab( "Surviving Prey" ) +
   theme( aspect.ratio = 1 )
 
+
+
 ggsave( "../pantala/model_out.png", plot = modelfig, units = c( "mm" ), dpi = 300 )
 
 library(cowplot)
@@ -210,4 +348,3 @@ Fig1.plot <- plot_grid(ddep.plot, modelfig, ncol = 1, align = c("v"), axis = c("
 
 ggsave("../pantala/panelCD.png", plot = Fig1.plot, units = c( "mm" ), dpi = 300 )
 ```
-
