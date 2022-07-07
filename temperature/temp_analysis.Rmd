@@ -8,6 +8,19 @@ output:
 ---
 
 ```{r, echo = FALSE, warning = FALSE}
+library(ggplot2)
+library(cowplot)
+library(GGally)
+library(AICcmodavg)
+library(dplyr)
+library(reshape2)
+library(kimisc)
+library(glmmTMB)
+library(performance)
+library(MuMIn)
+library(prediction)
+library(viridis)
+
 temponly.df <- read.csv("temperature_data.csv")
 abiotic.df <- read.csv("abiotic_data.csv")
 temp.df <- merge(temponly.df, abiotic.df)
@@ -20,40 +33,28 @@ First, let's take a look at some of the data and explore it for correlations.
 ## Temperature Metrics
 
 ```{r, echo = FALSE, warning = FALSE}
-library(ggplot2)
-hist(temp.df$MinWTemp)
-hist(temp.df$MeanWTemp)
 max.hist <- ggplot(temp.df, aes(x = MaxWTemp_C)) +
   geom_histogram(binwidth = 2, colour = "black", fill = "grey80") +  
-  theme_classic( base_size = 24, base_line_size = 1 ) + 
+  theme_classic( base_size = 12, base_line_size = 1 ) + 
   scale_y_continuous( expand = c(0, 0), limits = c(0, 60) ) +
   scale_x_continuous( limits = c(15, 45)) +
   xlab("Max Temperature (°C)") +
+  ylab("Frequency") +
   theme( panel.border = element_rect( color = "black", fill = NA, size = 0.75 ),
          legend.position = "none",
          aspect.ratio = 1)
 
-ggsave("maxhist.png",
-        plot = max.hist,
-        units = c("mm"),
-        dpi = 300)
 
 min.hist <- ggplot(temp.df, aes(x = MinWTemp_C)) +
   geom_histogram(binwidth = 2, colour = "black", fill = "grey80") +  
-  theme_classic( base_size = 24, base_line_size = 1 ) + 
+  theme_classic( base_size = 12, base_line_size = 1 ) + 
   scale_y_continuous( expand = c(0, 0), limits = c(0, 60) ) +
   scale_x_continuous( limits = c(15, 45)) +
   xlab("Min Temperature (°C)") +
+  ylab("Frequency") +
   theme( panel.border = element_rect( color = "black", fill = NA, size = 0.75 ),
          legend.position = "none",
          aspect.ratio = 1)
-
-ggsave("minhist.png",
-        plot = min.hist,
-        units = c("mm"),
-        dpi = 300)
-
-plot(MeanWTemp_C ~ MaxWTemp_C, data = temp.df)
 ```
 
 
@@ -102,19 +103,27 @@ temp.df$temp_range <-  temp.df$MaxWTemp_C - temp.df$MinWTemp_C
 cor(temp.df$MaxWTemp_C, temp.df$cvWTemp_C)
 cor(temp.df$MinWTemp_C, temp.df$temp_range)
 
-cv.plot <- ggplot(temp.df, aes(x = temp_range)) +
+cv.hist <- ggplot(temp.df, aes(x = temp_range)) +
   geom_histogram(binwidth = 2, colour = "black", fill = "grey80") +  
-  theme_classic( base_size = 24, base_line_size = 1 ) + 
+  theme_classic( base_size = 12, base_line_size = 1 ) + 
   scale_y_continuous( expand = c(0, 0) ) +
-  xlab("Daily Temp Range (°C)") +
+  xlab("Coefficient of Variation") +
+  ylab("Frequency") +
   theme( panel.border = element_rect( color = "black", fill = NA, size = 0.75 ),
          legend.position = "none",
          aspect.ratio = 1)
 
-ggsave("cvhist.png",
-        plot = cv.plot,
+Fig2.plot <- plot_grid( max.hist, min.hist, cv.hist,
+                        labels = c("a)", "b)", "c)"),
+                        label_x = 0.34,
+                        nrow = 3,
+                        align = "hv" )
+
+
+ggsave( "../figs/Fig2.png",
+        plot = Fig2.plot,
         units = c("mm"),
-        dpi = 300)
+        dpi = 300 )
 
 
 # Within pool variation
@@ -148,22 +157,17 @@ temp.df$Date <- as.factor(temp.df$Date)
 # Correlation Plots
 
 ```{r, echo = FALSE, warning = FALSE}
-library(GGally)
 temp2.df <- subset(temp.df, select = c("MaxWTemp_C", "MaxATemp_Z", "MaxRTemp_Z", "SurfArea_Z", "Depth_Z", "Pct_Shaded_Z", "DistRC_Z"))
-ggpairs(data = temp2.df)
+# ggpairs(data = temp2.df)
 ```
 
 Area and depth look like good predictors, as does maximum river temperature and shade. Oddly, there is also some colinearity going on with some of our predictor variables, too (e.g., area x depth, shade x depth).
 
-
-# Preliminary Modeling
+# Max Temperature Modeling
 
 Let's try making a basic GLMM using these variables, with area, depth, shade, and river temp as fixed effects and pool ID as a random effect. We'll take a stepwise approach to model selection.
 
 ```{r, echo = FALSE, results = "hide", warning = FALSE}
-library(glmmTMB)
-library(performance)
-library(MuMIn)
 temp.cand.models <- list()
 
 # Depth, Area, Shade, and River Temp 
@@ -210,53 +214,6 @@ temp.cand.models[[14]] <- glmmTMB(MaxWTemp_C ~ Pct_Shaded_Z + (1 | Pool_ID), dat
 
 # River temp alone
 temp.cand.models[[15]] <- glmmTMB(MaxWTemp_C ~ MaxRTemp_Z + (1 | Pool_ID), data = temp.df )
-
-
-# ## Without Pool ID random effect
-# # Depth, Area, Shade, and River Temp 
-# temp.cand.models[[16]] <- glmmTMB(MaxWTemp_C ~ Depth_Z * SurfArea_Z * Pct_Shaded_Z + MaxRTemp_Z, data = temp.df )
-# 
-# # Depth, Area, Shade
-# temp.cand.models[[17]] <- glmmTMB(MaxWTemp_C ~ Depth_Z * SurfArea_Z * Pct_Shaded_Z, data = temp.df )
-# 
-# # Depth, Area, River Temp
-# temp.cand.models[[18]] <- glmmTMB(MaxWTemp_C ~ Depth_Z * SurfArea_Z + MaxRTemp_Z, data = temp.df )
-# 
-# # Depth, Shade, River Temp
-# temp.cand.models[[19]] <- glmmTMB(MaxWTemp_C ~ Depth_Z * Pct_Shaded_Z + MaxRTemp_Z, data = temp.df )
-# 
-# # Area, Shade, River Temp
-# temp.cand.models[[20]] <- glmmTMB(MaxWTemp_C ~ SurfArea_Z * Pct_Shaded_Z + MaxRTemp_Z, data = temp.df )
-# 
-# # Depth and Area
-# temp.cand.models[[21]] <- glmmTMB(MaxWTemp_C ~ Depth_Z * SurfArea_Z, data = temp.df )
-# 
-# # Depth and Shade
-# temp.cand.models[[22]] <- glmmTMB(MaxWTemp_C ~ Depth_Z * Pct_Shaded_Z, data = temp.df )
-# 
-# # Depth and River Temp
-# temp.cand.models[[23]] <- glmmTMB(MaxWTemp_C ~ Depth_Z + MaxRTemp_Z, data = temp.df )
-# 
-# # Area and Shade
-# temp.cand.models[[24]] <- glmmTMB(MaxWTemp_C ~ SurfArea_Z * Pct_Shaded_Z, data = temp.df )
-# 
-# # Area and River Temp
-# temp.cand.models[[25]] <- glmmTMB(MaxWTemp_C ~ SurfArea_Z + MaxRTemp_Z, data = temp.df )
-# 
-# # Shade and River Temp
-# temp.cand.models[[26]] <- glmmTMB(MaxWTemp_C ~ Pct_Shaded_Z + MaxRTemp_Z, data = temp.df )
-# 
-# # Depth alone
-# temp.cand.models[[27]] <- glmmTMB(MaxWTemp_C ~ Depth_Z, data = temp.df )
-# 
-# # Area alone
-# temp.cand.models[[28]] <- glmmTMB(MaxWTemp_C ~ SurfArea_Z, data = temp.df )
-# 
-# # Shade alone
-# temp.cand.models[[29]] <- glmmTMB(MaxWTemp_C ~ Pct_Shaded_Z, data = temp.df )
-# 
-# # River temp alone
-# temp.cand.models[[30]] <- glmmTMB(MaxWTemp_C ~ MaxRTemp_Z, data = temp.df )
 ```
 
 Continuous, untransformed shade actually provides a lower AIC value than binning it (0-20%, 20-40%, 40-60%, 60-80%, 80-100%) or arcsine transforming it.
@@ -264,16 +221,12 @@ Continuous, untransformed shade actually provides a lower AIC value than binning
 Including distance from river channel improves things too, but only marginally, and oddly, the parameter estimates for it aren't significant.
 
 ```{r, echo = FALSE, warning = FALSE}
-library(AICcmodavg)
-library(dplyr)
-library(reshape2)
-library(kimisc)
 mod.names <- list()
 for (i in 1:length(temp.cand.models)){
 mod.names[i] <- as.character(formula(temp.cand.models[[i]], component = c("cond")))
 }
 aic_table <- aictab(cand.set = temp.cand.models, modnames = unlist(mod.names), sort = TRUE)
-write.csv(aic_table, file = "../temperature/aic_table.csv")
+# write.csv(aic_table, file = "../temperature/aic_table.csv")
 ```
 
 Ultimately, the best model includes Pool ID as a random effect, and river temperature as a fixed effect. Its AIC is 977.9 (nothing else comes particularly close), with a marginal r^2^ of 0.52 and a conditional of 0.87. It's worth noting that Pool ID and lat/long coords (outlined below) are virtually interchangeable here, so we will use Pool ID because it makes the math and interpretation simpler.
@@ -296,19 +249,17 @@ coeff.plot <- dwplot(plot1.df,
          aspect.ratio = 1,
          legend.position = "none")
 
-ggsave( "../figs/Fig2.png",
-        plot = coeff.plot,
-        width = 164,
-        height = 164,
-        units = c("mm"),
-        dpi = 300 )
+# ggsave( "../figs/Fig2.png",
+#         plot = coeff.plot,
+#         width = 164,
+#         height = 164,
+#         units = c("mm"),
+#         dpi = 300 )
 ```
-
 
 ## Predicting from the Model
 
 ```{r, echo = FALSE, warning = FALSE}
-library(prediction)
 predict.df <- prediction(mod21, data = temp.df, calculate_se = TRUE)
 predict.df$diffpred <- predict.df$fitted/predict.df$MaxWTemp_C
 
@@ -321,9 +272,6 @@ Interesting. Some over/underestimating at the tails, but most pools are within +
 Million dollar question: can we plot it?
 
 ```{r, echo = FALSE, warning = FALSE}
-library(ggplot2)
-library(viridis)
-
 ggplot(data = predict.df, aes(y = lat, x = long, colour = fitted)) +
   geom_point(size = 3.5, fill = "black") + 
   scale_colour_viridis() +
@@ -388,56 +336,131 @@ write.csv(predicted.df, "temp_predictions.csv", row.names = FALSE)
 saveRDS(mod21, "temp_model.rds")
 ```
 
+# Min Temperature Model
 
-## Spatially Explicit Modeling
+```{r}
+min.cand.models <- list()
 
-This section is deprecated with the realization that Pool ID is as good of a random effect as lat/long. Preserving the code here for posterity.
+# Depth, Area, Shade, and River Temp 
+min.cand.models[[1]] <- glmmTMB(MinWTemp_C ~ Depth_Z * SurfArea_Z * Pct_Shaded_Z + MaxRTemp_Z + (1 | Pool_ID), data = temp.df )
 
-```{r, eval = FALSE, echo = FALSE}
-# library(sp)
-# coordinates(temp.df) <- ~long + lat
-# bubble(temp.df, "residual")
-# 
-# temp.df$pos <- numFactor(temp.df$long, temp.df$lat)
-# temp.df$group <- factor(rep(1, nrow(temp.df)))
-# 
-# library(sjPlot)
-# spatial.glmm <- glmmTMB(MaxWTemp_C ~ logDepth * Pct_Shaded + ( 1 | MaxRTemp_C ) + exp(pos + 0 | group), data = temp.df )
-# tab_model(spatial.glmm, show.aic = TRUE, show.loglik = TRUE)
-# 
-# library(DHARMa)
-# DHARMa::testDispersion(spatial.glmm)
-# DHARMa::testDispersion(spatial.glmm, type="PearsonChisq", 
-#          alternative="greater")
-# sim.resids <- DHARMa::simulateResiduals(spatial.glmm, 250)
-# plot(sim.resids)
-# model_performance(spatial.glmm)
-# r.squaredGLMM(spatial.glmm)
-# 
-# model_list <- nlist(mod16, mod18, mod19, mod20, mod21, mod22, spatial.glmm)
-# aic_table <- aictab(model_list)
-# model_vars <- sapply(model_list, function(x) gsub(":", "*", paste(names(x$frame), collapse = " + ")))
-# aic_table <- cbind(Modnames = names(model_vars), model_vars) %>%
-#   merge(aic_table, by = "Modnames") %>%
-#   arrange(AICc)
-# aic_table
-# 
-# spatial.glmm2 <- glmmTMB(MaxWTemp_C ~ logDepth * Pct_Shaded + ( 1 | MaxRTemp_C ) + ( 1 | Pool_ID ) + exp(pos + 0 | group), data = temp.df )
-# tab_model(spatial.glmm2, show.aic = TRUE, show.loglik = TRUE)
-# 
-# spatial.glmm3 <- glmmTMB(MaxWTemp_C ~ logDepth * Pct_Shaded * MaxRTemp_C + ( 1 | Pool_ID ) + exp(pos + 0 | group), data = temp.df )
-# tab_model(spatial.glmm3, show.aic = TRUE, show.loglik = TRUE)
-# 
-# model_list <- nlist(mod16, mod18, mod19, mod20, mod21, mod22, spatial.glmm, spatial.glmm2, spatial.glmm3)
-# aic_table <- aictab(model_list)
-# model_vars <- sapply(model_list, function(x) gsub(":", "*", paste(names(x$frame), collapse = " + ")))
-# aic_table <- cbind(Modnames = names(model_vars), model_vars) %>%
-#   merge(aic_table, by = "Modnames") %>%
-#   arrange(AICc)
-# aic_table
-# 
-# temp.df$slab <- as.factor(temp.df$slab)
-# slabs.glmm <- glmmTMB(MaxWTemp_C ~ logDepth * Pct_Shaded + ( 1 | Date) + ( 1 | slab), data = temp.df )
-# tab_model(slabs.glmm, show.aic = TRUE, show.loglik = TRUE)
+# Depth, Area, Shade
+min.cand.models[[2]] <- glmmTMB(MinWTemp_C ~ Depth_Z * SurfArea_Z * Pct_Shaded_Z + (1 | Pool_ID), data = temp.df )
+
+# Depth, Area, River Temp
+min.cand.models[[3]] <- glmmTMB(MinWTemp_C ~ Depth_Z * SurfArea_Z + MaxRTemp_Z + (1 | Pool_ID), data = temp.df )
+
+# Depth, Shade, River Temp
+min.cand.models[[4]] <- glmmTMB(MinWTemp_C ~ Depth_Z * Pct_Shaded_Z + MaxRTemp_Z + (1 | Pool_ID), data = temp.df )
+
+# Area, Shade, River Temp
+min.cand.models[[5]] <- glmmTMB(MinWTemp_C ~ SurfArea_Z * Pct_Shaded_Z + MaxRTemp_Z + (1 | Pool_ID), data = temp.df )
+
+# Depth and Area
+min.cand.models[[6]] <- glmmTMB(MinWTemp_C ~ Depth_Z * SurfArea_Z + (1 | Pool_ID), data = temp.df )
+
+# Depth and Shade
+min.cand.models[[7]] <- glmmTMB(MinWTemp_C ~ Depth_Z * Pct_Shaded_Z + (1 | Pool_ID), data = temp.df )
+
+# Depth and River Temp -- does not converge
+# min.cand.models[[8]] <- glmmTMB(MinWTemp_C ~ Depth_Z + MaxRTemp_Z + (1 | Pool_ID), data = temp.df )
+
+# Area and Shade
+min.cand.models[[8]] <- glmmTMB(MinWTemp_C ~ SurfArea_Z * Pct_Shaded_Z + (1 | Pool_ID), data = temp.df )
+
+# Area and River Temp
+min.cand.models[[9]] <- glmmTMB(MinWTemp_C ~ SurfArea_Z + MaxRTemp_Z + (1 | Pool_ID), data = temp.df )
+
+# Shade and River Temp
+min.cand.models[[10]] <- glmmTMB(MinWTemp_C ~ Pct_Shaded_Z + MaxRTemp_Z + (1 | Pool_ID), data = temp.df )
+
+# Depth alone
+min.cand.models[[11]] <- glmmTMB(MinWTemp_C ~ Depth_Z + (1 | Pool_ID), data = temp.df )
+
+# Area alone
+min.cand.models[[12]] <- glmmTMB(MinWTemp_C ~ SurfArea_Z + (1 | Pool_ID), data = temp.df )
+
+# Shade alone
+min.cand.models[[13]] <- glmmTMB(MinWTemp_C ~ Pct_Shaded_Z + (1 | Pool_ID), data = temp.df )
+
+# River temp alone
+min.cand.models[[14]] <- glmmTMB(MinWTemp_C ~ MaxRTemp_Z + (1 | Pool_ID), data = temp.df )
+
+mod.names <- list()
+# for (i in 1:length(min.cand.models)){
+# mod.names[i] <- as.character(formula(min.cand.models[[i]], component = c("cond")))
+# }
+aic_table2 <- aictab(cand.set = min.cand.models, sort = TRUE)
+
+summary(min.cand.models[[1]])
+r2(min.cand.models[[1]])
 ```
+
+The full model is the best, indicating that shadier pools with higher surface area have lower min temps, while deeper pools and warmer river days mean higher min temps. R2 values are decent. Conditional of 0.869, marginal of 0.834.
+
+# CV Temperature Model
+
+```{r}
+cv.cand.models <- list()
+
+# Depth, Area, Shade, and River Temp 
+cv.cand.models[[1]] <- glmmTMB(cvWTemp_C ~ Depth_Z * SurfArea_Z * Pct_Shaded_Z + MaxRTemp_Z + (1 | Pool_ID), data = temp.df )
+
+# Depth, Area, Shade
+cv.cand.models[[2]] <- glmmTMB(cvWTemp_C ~ Depth_Z * SurfArea_Z * Pct_Shaded_Z + (1 | Pool_ID), data = temp.df )
+
+# Depth, Area, River Temp
+cv.cand.models[[3]] <- glmmTMB(cvWTemp_C ~ Depth_Z * SurfArea_Z + MaxRTemp_Z + (1 | Pool_ID), data = temp.df )
+
+# Depth, Shade, River Temp
+cv.cand.models[[4]] <- glmmTMB(cvWTemp_C ~ Depth_Z * Pct_Shaded_Z + MaxRTemp_Z + (1 | Pool_ID), data = temp.df )
+
+# Area, Shade, River Temp
+cv.cand.models[[5]] <- glmmTMB(cvWTemp_C ~ SurfArea_Z * Pct_Shaded_Z + MaxRTemp_Z + (1 | Pool_ID), data = temp.df )
+
+# Depth and Area
+cv.cand.models[[6]] <- glmmTMB(cvWTemp_C ~ Depth_Z * SurfArea_Z + (1 | Pool_ID), data = temp.df )
+
+# Depth and Shade
+cv.cand.models[[7]] <- glmmTMB(cvWTemp_C ~ Depth_Z * Pct_Shaded_Z + (1 | Pool_ID), data = temp.df )
+
+# Depth and River Temp
+cv.cand.models[[8]] <- glmmTMB(cvWTemp_C ~ Depth_Z + MaxRTemp_Z + (1 | Pool_ID), data = temp.df )
+
+# Area and Shade
+cv.cand.models[[9]] <- glmmTMB(cvWTemp_C ~ SurfArea_Z * Pct_Shaded_Z + (1 | Pool_ID), data = temp.df )
+
+# Area and River Temp
+cv.cand.models[[10]] <- glmmTMB(cvWTemp_C ~ SurfArea_Z + MaxRTemp_Z + (1 | Pool_ID), data = temp.df )
+
+# Shade and River Temp
+cv.cand.models[[11]] <- glmmTMB(cvWTemp_C ~ Pct_Shaded_Z + MaxRTemp_Z + (1 | Pool_ID), data = temp.df )
+
+# Depth alone
+cv.cand.models[[12]] <- glmmTMB(cvWTemp_C ~ Depth_Z + (1 | Pool_ID), data = temp.df )
+
+# Area alone
+cv.cand.models[[13]] <- glmmTMB(cvWTemp_C ~ SurfArea_Z + (1 | Pool_ID), data = temp.df )
+
+# Shade alone
+cv.cand.models[[14]] <- glmmTMB(cvWTemp_C ~ Pct_Shaded_Z + (1 | Pool_ID), data = temp.df )
+
+# River temp alone
+cv.cand.models[[15]] <- glmmTMB(cvWTemp_C ~ MaxRTemp_Z + (1 | Pool_ID), data = temp.df )
+
+# mod.names <- list()
+# for (i in 1:length(min.cand.models)){
+# mod.names[i] <- as.character(formula(min.cand.models[[i]], component = c("cond")))
+# }
+aic_table3 <- aictab(cand.set = cv.cand.models, sort = TRUE)
+
+summary(cv.cand.models[[4]])
+r2(cv.cand.models[[4]])
+
+cor(temp.df$cvWTemp_C, temp.df$MaxWTemp_C)
+cor(temp.df$cvWTemp_C, temp.df$MinWTemp_C)
+cor(temp.df$MinWTemp_C, temp.df$MaxWTemp_C)
+```
+
+Model 4 wins here, but the coefficient estimates are all pretty small. It looks like depth, shading, and river temperature all reduce temperature variability. R2 is ok, but a lot of it seems to be coming from the random effect of Pool ID. Conditional is 0.822, marginal is only 0.385. It's worth noting too that cv is correlated with both maximum (r = 0.66; so warmer = more variation) and minimum temps (r = -0.55; so cooler = more variation).
 
