@@ -193,10 +193,23 @@ Pan_Summary.df <- as.data.frame( Summary )
 ```{r}
 ######## Plots
 
+# Cut off values above the "hump"
+aggregate(Pan_Summary.df$num_survive, by = list(Pan_Summary.df$temp), FUN = "mean", na.rm = TRUE)
+# The "hump" is at 34C, so let's ignore everything below that
+
+Pan_Summary3.df <- Pan_Summary.df[ which(Pan_Summary.df$temp < 34), ]
+linear.mod <- lm(num_survive ~ temp, data = Pan_Summary3.df)
+summary(linear.mod)
+
+# Slope is 2.44, se of 0.08, p > 0.001
+# Intercept is 4.29, se of 2.15, p = 0.046
+
 modelout <- read.csv( "../pantala/Output_PanSpp.csv" )
+modelout$predicted <- predict(linear.mod, newdata = modelout)
 
 modelfig <- ggplot( modelout, aes( x = temp, y = num_survive ) ) +
   geom_smooth( size = 1, colour = "black"  ) +
+  geom_smooth( size = 1, colour = "red", aes( x = temp, y = predicted ) ) +
   scale_x_continuous( breaks = c( 20, 24, 28, 32, 36 ) ) +
   scale_y_continuous( expand = c( 0, 0 ) ) +
   coord_cartesian( ylim = c(25, 110)) +
@@ -213,25 +226,9 @@ modelfig <- ggplot( modelout, aes( x = temp, y = num_survive ) ) +
 
 
 
-# ggsave( "../pantala/model_out.png", plot = modelfig, units = c( "mm" ), dpi = 300 )
 
-# library(cowplot)
-# Fig1.plot <- plot_grid(ddep.plot, modelfig, ncol = 1, align = c("v"), axis = c("l") )
+library(cowplot)
+Fig1.plot <- plot_grid(ddep.plot, modelfig, ncol = 1, align = c("v"), axis = c("l") )
 
-# ggsave("../pantala/panelCD.png", plot = Fig1.plot, units = c( "mm" ), dpi = 300 )
+ggsave("../pantala/panelCD.png", plot = Fig1.plot, units = c( "mm" ), dpi = 300 )
 ```
-
-
-```{r}
-# Cut off values above the "hump"
-aggregate(Pan_Summary.df$num_survive, by = list(Pan_Summary.df$temp), FUN = "mean", na.rm = TRUE)
-# The "hump" is at 34C, so let's ignore everything below that
-
-Pan_Summary3.df <- Pan_Summary.df[ which(Pan_Summary.df$temp < 34), ]
-linear.mod <- lm(num_survive ~ temp, data = Pan_Summary3.df)
-summary(linear.mod)
-
-# Slope is 2.44, se of 0.08, p > 0.001
-# Intercept is 4.29, se of 2.15, p = 0.046
-```
-
