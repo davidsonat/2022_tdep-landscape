@@ -1,4 +1,4 @@
-Pool_ID,Date_Collected,Mosquito,Skimmer_Dragonfly,FloodedAt,Date_Last_Flooded,Length_Last_Flooded,Days_Between_Flood_Sampling
+Pool_ID,Date,Mosquito,Skimmer_Dragonfly,FloodedAt,Date_Last_Flooded,Length_Last_Flooded,Days_Between_Flood_Sampling
 62,4/6/2021,18,0,12.65705743,2/17/2021,2,48
 58,4/20/2021,0,0,16.6863054,11/14/2020,2,157
 60,4/20/2021,593,0,16.6863054,11/14/2020,2,157

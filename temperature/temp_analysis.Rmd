@@ -120,10 +120,10 @@ Fig2.plot <- plot_grid( max.hist, min.hist, cv.hist,
                         align = "hv" )
 
 
-ggsave( "../figs/Fig2.png",
-        plot = Fig2.plot,
-        units = c("mm"),
-        dpi = 300 )
+# ggsave( "../figs/Fig2.png",
+#         plot = Fig2.plot,
+#         units = c("mm"),
+#         dpi = 300 )
 
 
 # Within pool variation
@@ -221,21 +221,22 @@ Continuous, untransformed shade actually provides a lower AIC value than binning
 Including distance from river channel improves things too, but only marginally, and oddly, the parameter estimates for it aren't significant.
 
 ```{r, echo = FALSE, warning = FALSE}
-mod.names <- list()
-for (i in 1:length(temp.cand.models)){
-mod.names[i] <- as.character(formula(temp.cand.models[[i]], component = c("cond")))
-}
-aic_table <- aictab(cand.set = temp.cand.models, modnames = unlist(mod.names), sort = TRUE)
+# mod.names <- list()
+# for (i in 1:length(temp.cand.models)){
+# mod.names[i] <- as.character(formula(temp.cand.models[[i]], component = c("cond")))
+# }
+aic_table <- aictab(cand.set = temp.cand.models, sort = TRUE)
+summary(temp.cand.models[[7]])
 # write.csv(aic_table, file = "../temperature/aic_table.csv")
 ```
 
-Ultimately, the best model includes Pool ID as a random effect, and river temperature as a fixed effect. Its AIC is 977.9 (nothing else comes particularly close), with a marginal r^2^ of 0.52 and a conditional of 0.87. It's worth noting that Pool ID and lat/long coords (outlined below) are virtually interchangeable here, so we will use Pool ID because it makes the math and interpretation simpler.
+Ultimately, the best model includes Pool ID as a random effect, and depth and shading as fixed effects. Its AIC is 999.98 (nothing else comes particularly close), with a marginal r^2^ of 0.52 and a conditional of 0.87. It's worth noting that Pool ID and lat/long coords (outlined below) are virtually interchangeable here, so we will use Pool ID because it makes the math and interpretation simpler.
 
 ```{r}
 library(dotwhisker)
 library(broom)
 library(broom.mixed)
-plot1.df <- broom::tidy(mod21)
+plot1.df <- broom::tidy(temp.cand.models[[4]])
 plot1.df$model <- c("cond", "cond", "cond", "cond", "cond", "cond", "cond")
 plot1.df <- plot1.df[-c(1,6,7),]
 plot1.df$term <- c("Depth (cm)", "Shading", "Max River Temp. (°C)", "Depth:Shading")
@@ -287,54 +288,28 @@ The next step will be to challenge the model (and ourselves) a bit. Can we simul
 testdata.df <- read.csv("abiotic_data.csv")
 testdata.df$Depth_cm <- as.numeric(testdata.df$Depth_cm)
 testdata.df$Pct_Shaded <- as.numeric(testdata.df$Pct_Shaded)
+testdata.df$SurfArea_cm2 <- as.numeric(testdata.df$SurfArea_cm2)
 testdata.df$Pool_ID <- as.factor(testdata.df$Pool_ID)
 testdata.df$MaxRTemp_Z <- rep(0, nrow(testdata.df))
 testdata.df$Pct_Shaded <- testdata.df$Pct_Shaded/100
 testdata.df$Depth_Z <- (testdata.df$Depth_cm - mean(testdata.df$Depth_cm, na.rm = TRUE))/sd(testdata.df$Depth_cm, na.rm = TRUE)
 testdata.df$Pct_Shaded_Z <- (testdata.df$Pct_Shaded - mean(testdata.df$Pct_Shaded, na.rm = TRUE))/sd(testdata.df$Pct_Shaded, na.rm = TRUE)
+testdata.df$SurfArea_Z <- (testdata.df$SurfArea_cm2 - mean(testdata.df$SurfArea_cm2, na.rm = TRUE))/sd(testdata.df$SurfArea_cm2, na.rm = TRUE)
 
 testdata.df <- testdata.df[!is.na(testdata.df$Depth_Z),]
 testdata.df <- testdata.df[!is.na(testdata.df$Pct_Shaded_Z),]
-predict2.df <- predict(mod21, newdata = testdata.df, allow.new.levels = TRUE, se.fit = TRUE, na.rm = TRUE)
+testdata.df <- testdata.df[!is.na(testdata.df$SurfArea_cm2),]
+
+predict2.df <- predict(temp.cand.models[[4]], newdata = testdata.df, allow.new.levels = TRUE, se.fit = TRUE, na.rm = TRUE)
 predicted.df <- cbind(testdata.df, predict2.df)
 
-temp_plot <- ggplot(data = predicted.df, aes(y = lat, x = long, colour = fit)) +
-  geom_point(size = 1.5, fill = "black") + 
-  scale_colour_viridis() + 
-  theme_classic( base_size = 12, base_line_size = 1 ) + 
-  theme(panel.background = element_rect(fill = "black", colour = "black", size = 0.5, linetype = "solid"),
-        panel.grid.major = element_blank(),
-        panel.grid.minor = element_blank(),
-        aspect.ratio = 1) +
-  labs(colour = "Temp (°C)")
+names(predicted.df)[names(predicted.df) == 'fit'] <- 'MaxTemp_Predicted_C'
+names(predicted.df)[names(predicted.df) == 'se.fit'] <- 'MaxTemp_SE'
 
-write.csv(predicted.df, file = "output_fullsys.csv")
-ggsave(temp_plot, file = "plot_fullsys.png", width = 14, height = 10, units = "cm")
-
+predicted.df$MaxTemp_Z <- (predicted.df$MaxTemp_Predicted_C - mean(predicted.df$MaxTemp_Predicted_C))/sd(predicted.df$MaxTemp_Predicted_C)
 ```
 
-Awesome. Lastly, let's convert these temperature estimates into a standardized z-score that measures how relatively "hot" a pool gets.
 
-```{r, echo = FALSE, warning = FALSE}
-predicted.df$z_score <- (predicted.df$fit - mean(predicted.df$fit))/sd(predicted.df$fit)
-
-predicted.df$DistRC_m <- NULL
-predicted.df$SurfArea_cm2 <- NULL
-predicted.df$Volume_cm3 <- NULL
-predicted.df$Notes <- NULL
-predicted.df$MaxRTemp_C <- NULL
-predicted.df$MaxRTemp_Z <- NULL
-# predicted.df$pos <- NULL
-# predicted.df$group <- NULL
-predicted.df$logDepth <- NULL
-
-colnames(predicted.df) <- c("Pool_ID", "lat", "long", "Depth_cm", "Pct_Shaded", "Depth_Z", "Pct_Shaded_Z", "Temp_Predicted_C","Temp_StdErr", "Temp_Zscore")
-
-hist(predicted.df$Temp_Zscore)
-
-write.csv(predicted.df, "temp_predictions.csv", row.names = FALSE)
-saveRDS(mod21, "temp_model.rds")
-```
 
 # Min Temperature Model
 
@@ -398,6 +373,14 @@ r2(min.cand.models[[1]])
 
 The full model is the best, indicating that shadier pools with higher surface area have lower min temps, while deeper pools and warmer river days mean higher min temps. R2 values are decent. Conditional of 0.869, marginal of 0.834.
 
+```{r, echo = FALSE, warning = FALSE}
+predict3.df <- predict(min.cand.models[[1]], newdata = testdata.df, allow.new.levels = TRUE, se.fit = TRUE, na.rm = TRUE)
+predicted.df <- cbind(predicted.df, predict3.df)
+
+names(predicted.df)[names(predicted.df) == 'fit'] <- 'MinTemp_Predicted_C'
+names(predicted.df)[names(predicted.df) == 'se.fit'] <- 'MinTemp_SE'
+```
+
 # CV Temperature Model
 
 ```{r}
@@ -460,6 +443,15 @@ r2(cv.cand.models[[4]])
 cor(temp.df$cvWTemp_C, temp.df$MaxWTemp_C)
 cor(temp.df$cvWTemp_C, temp.df$MinWTemp_C)
 cor(temp.df$MinWTemp_C, temp.df$MaxWTemp_C)
+
+
+predict4.df <- predict(cv.cand.models[[4]], newdata = testdata.df, allow.new.levels = TRUE, se.fit = TRUE, na.rm = TRUE)
+predicted.df <- cbind(predicted.df, predict4.df)
+
+names(predicted.df)[names(predicted.df) == 'fit'] <- 'CVTemp_Predicted_C'
+names(predicted.df)[names(predicted.df) == 'se.fit'] <- 'CVTemp_SE'
+
+write.csv(predicted.df, file = "temp_predictions.csv")
 ```
 
 Model 4 wins here, but the coefficient estimates are all pretty small. It looks like depth, shading, and river temperature all reduce temperature variability. R2 is ok, but a lot of it seems to be coming from the random effect of Pool ID. Conditional is 0.822, marginal is only 0.385. It's worth noting too that cv is correlated with both maximum (r = 0.66; so warmer = more variation) and minimum temps (r = -0.55; so cooler = more variation).
