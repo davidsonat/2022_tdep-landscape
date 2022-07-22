@@ -183,7 +183,7 @@ for ( r in 1:num_reps ) {
 
 Pan_Summary.df <- as.data.frame( Summary )
 
-# write.csv( Pan_Summary.df, "../pantala/Output_PanSpp.csv", row.names = FALSE)
+# read.csv( Pan_Summary.df, "../pantala/Output_PanSpp.csv" )
 ```
 
 
@@ -200,6 +200,7 @@ aggregate(Pan_Summary.df$num_survive, by = list(Pan_Summary.df$temp), FUN = "mea
 Pan_Summary3.df <- Pan_Summary.df[ which(Pan_Summary.df$temp < 34), ]
 linear.mod <- lm(num_survive ~ temp, data = Pan_Summary3.df)
 summary(linear.mod)
+confint(linear.mod)
 
 # Slope is 2.44, se of 0.08, p > 0.001
 # Intercept is 4.29, se of 2.15, p = 0.046

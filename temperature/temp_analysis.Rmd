@@ -226,7 +226,8 @@ Including distance from river channel improves things too, but only marginally, 
 # mod.names[i] <- as.character(formula(temp.cand.models[[i]], component = c("cond")))
 # }
 aic_table <- aictab(cand.set = temp.cand.models, sort = TRUE)
-summary(temp.cand.models[[7]])
+summary(temp.cand.models[[4]])
+confint(temp.cand.models[[4]])
 # write.csv(aic_table, file = "../temperature/aic_table.csv")
 ```
 
@@ -369,6 +370,7 @@ aic_table2 <- aictab(cand.set = min.cand.models, sort = TRUE)
 
 summary(min.cand.models[[1]])
 r2(min.cand.models[[1]])
+confint(min.cand.models[[1]])
 ```
 
 The full model is the best, indicating that shadier pools with higher surface area have lower min temps, while deeper pools and warmer river days mean higher min temps. R2 values are decent. Conditional of 0.869, marginal of 0.834.
@@ -439,6 +441,7 @@ aic_table3 <- aictab(cand.set = cv.cand.models, sort = TRUE)
 
 summary(cv.cand.models[[4]])
 r2(cv.cand.models[[4]])
+confint(cv.cand.models[[4]])
 
 cor(temp.df$cvWTemp_C, temp.df$MaxWTemp_C)
 cor(temp.df$cvWTemp_C, temp.df$MinWTemp_C)
@@ -451,7 +454,7 @@ predicted.df <- cbind(predicted.df, predict4.df)
 names(predicted.df)[names(predicted.df) == 'fit'] <- 'CVTemp_Predicted_C'
 names(predicted.df)[names(predicted.df) == 'se.fit'] <- 'CVTemp_SE'
 
-write.csv(predicted.df, file = "temp_predictions.csv")
+# write.csv(predicted.df, file = "temp_predictions.csv")
 ```
 
 Model 4 wins here, but the coefficient estimates are all pretty small. It looks like depth, shading, and river temperature all reduce temperature variability. R2 is ok, but a lot of it seems to be coming from the random effect of Pool ID. Conditional is 0.822, marginal is only 0.385. It's worth noting too that cv is correlated with both maximum (r = 0.66; so warmer = more variation) and minimum temps (r = -0.55; so cooler = more variation).
