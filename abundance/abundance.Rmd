@@ -168,11 +168,10 @@ mosq.cand.models[[6]] <- glmmTMB(Mosquito ~ Skimmer_Z + Days_Between_Z + (1 | Da
 # All three
 mosq.cand.models[[7]] <- glmmTMB(Mosquito ~ MaxTemp_Z * Skimmer_Z + Days_Between_Z + (1 | Date), ziformula = ~., family = truncated_nbinom2(), data = abundance.df)
 
-mod.names <- list()
-for (i in 1:length(mosq.cand.models)){
-mod.names[i] <- as.character(formula(mosq.cand.models[[i]], component = c("cond")))
-}
-aic_table <- aictab(cand.set = mosq.cand.models, modnames = unlist(mod.names), sort = TRUE)
+# Technically this has lower AIC than model 4, but the quadratic term isn't significant and the dragonfly effect disappears
+mosq.cand.models[[8]] <- glmmTMB(Mosquito ~ I(MaxTemp_Z^2) * MaxTemp_Z * Skimmer_Z + (1 | Date), ziformula = ~., family = truncated_nbinom2(), data = abundance.df)
+
+aic_table <- aictab(cand.set = mosq.cand.models, sort = TRUE)
 # write.csv(aic_table, file = "../abundance/aic_table.csv")
 
 summary(mosq.cand.models[[4]])
@@ -225,10 +224,10 @@ Fig4.plot <- plot_grid( coeff.plot1, coeff.plot2,
                         align = "hv" )
 
 
-ggsave( "Fig4.png",
-        plot = Fig4.plot,
-        units = c("mm"),
-        dpi = 300 )
+# ggsave( "Fig4.png",
+#         plot = Fig4.plot,
+#         units = c("mm"),
+#         dpi = 300 )
 
 
 mosq_effect.1 <- effect_plot(mosq.cand.models[[4]], pred = MaxTemp_Z, interval = TRUE, plot.points = TRUE, y.label = "Mosquito Abundance", x.label = "Max Temperature (°C)", point.size = 3) +  theme_classic( base_size = 24, base_line_size = 1 ) + 
@@ -245,15 +244,20 @@ mosq_effect.2 <- effect_plot(mosq.cand.models[[4]], pred = Skimmer_Z, interval =
          legend.position = "none",
          aspect.ratio = 1)
 
-ggsave( "effectplot1.png",
-        plot = mosq_effect.1,
-        units = c("mm"),
-        dpi = 300)
+# ggsave( "effectplot1.png",
+#         plot = mosq_effect.1,
+#         units = c("mm"),
+#         dpi = 300)
+# 
+# ggsave( "effectplot2.png",
+#         plot = mosq_effect.2,
+#         units = c("mm"),
+#         dpi = 300)
 
-ggsave( "effectplot2.png",
-        plot = mosq_effect.2,
-        units = c("mm"),
-        dpi = 300)
+
+# ggplot(data = abundance.df, aes(x = MaxTemp_Predicted_C, y = Mosquito, colour = drgn_presence)) +
+#   geom_point() +
+#   geom_smooth()
 ```
 
 
