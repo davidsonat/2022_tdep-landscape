@@ -225,10 +225,10 @@ Fig4.plot <- plot_grid( coeff.plot1, coeff.plot2,
                         align = "hv" )
 
 
-ggsave( "Fig4.png",
-        plot = Fig4.plot,
-        units = c("mm"),
-        dpi = 300 )
+# ggsave( "Fig4.png",
+#         plot = Fig4.plot,
+#         units = c("mm"),
+#         dpi = 300 )
 
 
 mosq_effect.1 <- effect_plot(mosq.cand.models[[4]], pred = MaxTemp_Z, interval = TRUE, plot.points = TRUE, y.label = "Mosquito Abundance", x.label = "Max Temperature (°C)", point.size = 3) +  theme_classic( base_size = 24, base_line_size = 1 ) + 
@@ -245,15 +245,20 @@ mosq_effect.2 <- effect_plot(mosq.cand.models[[4]], pred = Skimmer_Z, interval =
          legend.position = "none",
          aspect.ratio = 1)
 
-ggsave( "effectplot1.png",
-        plot = mosq_effect.1,
-        units = c("mm"),
-        dpi = 300)
+# ggsave( "effectplot1.png",
+#         plot = mosq_effect.1,
+#         units = c("mm"),
+#         dpi = 300)
+# 
+# ggsave( "effectplot2.png",
+#         plot = mosq_effect.2,
+#         units = c("mm"),
+#         dpi = 300)
 
-ggsave( "effectplot2.png",
-        plot = mosq_effect.2,
-        units = c("mm"),
-        dpi = 300)
+
+# ggplot(data = abundance.df, aes(x = MaxTemp_Predicted_C, y = Mosquito, colour = drgn_presence)) +
+#   geom_point() +
+#   geom_smooth()
 ```
 
 
