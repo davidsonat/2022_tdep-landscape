@@ -28,6 +28,7 @@ sizedep.plot <- ggplot(data = sizedep.dat, aes(x = Instar, y = Killed, fill = In
         aspect.ratio = 1)
 
 
+
 aggregate(sizedep.dat$Killed, by = list(sizedep.dat$pred, sizedep.dat$Instar), FUN = 'mean')
 samplesize <- aggregate(sizedep.dat$Killed, by = list(sizedep.dat$pred, sizedep.dat$Instar), FUN = 'length')
 stdev <- aggregate(sizedep.dat$Killed, by = list(sizedep.dat$pred, sizedep.dat$Instar), FUN = 'sd')
