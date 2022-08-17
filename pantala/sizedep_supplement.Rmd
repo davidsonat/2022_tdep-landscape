@@ -1,0 +1,39 @@
+---
+title: "sizedep_supplement"
+author: "Andy"
+date: '2022-08-17'
+output: html_document
+---
+
+
+```{r}
+#Load required packages
+require(ggplot2)
+sizedep.dat <- read.csv("../pantala/sizedep-pred_data.csv")
+
+sizedep.dat$pred <- as.factor(sizedep.dat$pred)
+sizedep.dat$Instar <- as.factor(sizedep.dat$Instar)
+
+# For now, let's exclude the temperature-dependence from the figure and just compare across temps
+sizedep.plot <- ggplot(data = sizedep.dat, aes(x = Instar, y = Killed, fill = Instar)) +
+  geom_boxplot() + 
+  xlab("Mosquito Larval Instar") +
+  ylab("# of Mosquito Larvae Consumed") +
+  scale_y_continuous(expand = c(0,0), breaks = c(0, 50, 100, 150, 200, 250, 300)) +
+  scale_fill_manual(values = c("gray80", "gray80")) +
+  theme_classic( base_size = 16, base_line_size = 1) +
+  theme(legend.position = "none") +
+  theme(aspect.ratio = 1 )
+
+
+aggregate(sizedep.dat$Killed, by = list(sizedep.dat$pred, sizedep.dat$Instar), FUN = 'mean')
+samplesize <- aggregate(sizedep.dat$Killed, by = list(sizedep.dat$pred, sizedep.dat$Instar), FUN = 'length')
+stdev <- aggregate(sizedep.dat$Killed, by = list(sizedep.dat$pred, sizedep.dat$Instar), FUN = 'sd')
+stdev[,3]/sqrt(samplesize[,3])
+
+ggsave( "../pantala/sizedep.png",
+        plot = sizedep.plot,
+        units = c( "mm" ),
+        dpi = 300 )
+```
+
