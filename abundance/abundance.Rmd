@@ -372,8 +372,8 @@ Fig4.plot <- plot_grid( coeff.plot1, coeff.plot2,
 #         dpi = 300 )
 
 
-mosq_effect.1 <- effect_plot(mosq.cand.models[[11]], pred = MaxTemp_Z, interval = TRUE, plot.points = TRUE, y.label = "Mosquito Abundance", x.label = "Max Temperature (°C)", point.size = 1) +  
-  theme_classic( base_size = 12, base_line_size = 0.1 ) + 
+mosq_effect.1 <- effect_plot(mosq.cand.models[[11]], pred = MaxTemp_Z, interval = TRUE, plot.points = TRUE, y.label = "Prey Abundance", x.label = "Max Temperature (°C)", point.size = 0.75, line.thickness = 0.35) +  
+  theme_classic( base_size = 11, base_line_size = 0.1 ) + 
   scale_y_continuous( expand = c(0, 0) ) +
   scale_x_continuous( expand = c(0, 0), 
                       breaks = c((25 - mean(abundance.df$MaxTemp_Predicted_C))/sd(abundance.df$MaxTemp_Predicted_C),
@@ -390,8 +390,8 @@ mosq_effect.1 <- effect_plot(mosq.cand.models[[11]], pred = MaxTemp_Z, interval 
          aspect.ratio = 1)
 
   
-mosq_effect.2 <- effect_plot(mosq.cand.models[[11]], pred = Skimmer_Z, interval = TRUE, plot.points = TRUE, y.label = "Mosquito Abundance", x.label = "Dragonfly Abundance", point.size = 1) +  
-  theme_classic( base_size = 12, base_line_size = 0.1 ) +
+mosq_effect.2 <- effect_plot(mosq.cand.models[[11]], pred = Skimmer_Z, interval = TRUE, plot.points = TRUE, y.label = "Prey Abundance", x.label = "Predator Abundance", point.size = 0.75, line.thickness = 0.35) +  
+  theme_classic( base_size = 11, base_line_size = 0.1 ) +
   scale_x_continuous( expand = c(0, 0), 
                       breaks = c((0 - mean(abundance.df$Skimmer_Dragonfly))/sd(abundance.df$Skimmer_Dragonfly),
                                                    (5 - mean(abundance.df$Skimmer_Dragonfly))/sd(abundance.df$Skimmer_Dragonfly),
@@ -411,9 +411,12 @@ mosq_effect.2 <- effect_plot(mosq.cand.models[[11]], pred = Skimmer_Z, interval 
 
 
 # Maybe an axis transformation would help? log doesn't seem to do it though
+library(MASS)
 abundance.df$predicted <- predict(mosq.cand.models[[11]], newdata = abundance.df, type = "response")
 mosq_effect.3 <- ggplot(data = abundance.df, aes(x = MaxTemp_Z, y = predicted, colour = drgn_presence) ) +
-  geom_point(size = 1) +
+  geom_point(size = 0.75) +
+#  geom_smooth(method = "glm.nb") + Doesn't work since the predicted vals aren't integers
+  geom_smooth(size = 0.35, method = 'glm', formula = y~x, method.args = list(family = gaussian(link = 'log'))) +
   scale_x_continuous( expand = c(0, 0), 
                       breaks = c((25 - mean(abundance.df$MaxTemp_Predicted_C))/sd(abundance.df$MaxTemp_Predicted_C),
                                  (27.5 - mean(abundance.df$MaxTemp_Predicted_C))/sd(abundance.df$MaxTemp_Predicted_C),
@@ -425,17 +428,22 @@ mosq_effect.3 <- ggplot(data = abundance.df, aes(x = MaxTemp_Z, y = predicted, c
                                  (35 - mean(abundance.df$MaxTemp_Predicted_C))/sd(abundance.df$MaxTemp_Predicted_C) ) ) +
   scale_y_continuous( expand = c(0, 0) ) +
   coord_cartesian(ylim = c(0, 100) ) +
-  ylab("Predicted Prey Abundance") +
+  ylab("Predicted Abundance") +
   xlab("Max Temperature (°C)") +
   scale_colour_discrete(name = "Predators") + 
-  theme_classic( base_size = 12, base_line_size = 0.1 ) +
+  theme_classic( base_size = 11, base_line_size = 0.1 ) +
   theme( panel.border = element_rect( color = "black", fill = NA, size = 0.75 ),
-         legend.position = "none",
+         legend.position = "bottom",
          aspect.ratio = 1)
-  
-mosq_effect.plot <- plot_grid( mosq_effect.1, mosq_effect.2, mosq_effect.3,
-                        labels = c("a)", "b)", "c)"),
-                        nrow = 3,
+
+
+legend <- get_legend(mosq_effect.3)
+mosq_effect.3 <- mosq_effect.3 + theme(legend.position = "none")
+mosq_effect.plot <- plot_grid( mosq_effect.1, mosq_effect.2, mosq_effect.3, legend,
+                        labels = c("a)", "b)", "c)", ""),
+                        nrow = 4,
+                        label_x = 0.3,
+                        rel_heights = c(1, 1, 1, 0.2),
                         align = "hv" )
 
 
