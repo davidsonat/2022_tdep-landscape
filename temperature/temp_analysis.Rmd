@@ -226,6 +226,23 @@ Including distance from river channel improves things too, but only marginally, 
 # mod.names[i] <- as.character(formula(temp.cand.models[[i]], component = c("cond")))
 # }
 aic_table <- aictab(cand.set = temp.cand.models, sort = TRUE)
+library(performance)
+r2(temp.cand.models[[1]])
+r2(temp.cand.models[[2]])
+r2(temp.cand.models[[3]])
+r2(temp.cand.models[[4]])
+r2(temp.cand.models[[5]])
+r2(temp.cand.models[[6]])
+r2(temp.cand.models[[7]])
+r2(temp.cand.models[[8]])
+r2(temp.cand.models[[9]])
+r2(temp.cand.models[[10]])
+r2(temp.cand.models[[11]])
+r2(temp.cand.models[[12]])
+r2(temp.cand.models[[13]])
+r2(temp.cand.models[[14]])
+r2(temp.cand.models[[15]])
+
 summary(temp.cand.models[[4]])
 confint(temp.cand.models[[4]])
 # write.csv(aic_table, file = "../temperature/aic_table.csv")
@@ -368,8 +385,24 @@ mod.names <- list()
 # }
 aic_table2 <- aictab(cand.set = min.cand.models, sort = TRUE)
 
-summary(min.cand.models[[1]])
 r2(min.cand.models[[1]])
+r2(min.cand.models[[2]])
+r2(min.cand.models[[3]])
+r2(min.cand.models[[4]])
+r2(min.cand.models[[5]])
+r2(min.cand.models[[6]])
+r2(min.cand.models[[7]])
+r2(min.cand.models[[8]])
+r2(min.cand.models[[9]])
+r2(min.cand.models[[10]])
+r2(min.cand.models[[11]])
+r2(min.cand.models[[12]])
+r2(min.cand.models[[13]])
+r2(min.cand.models[[14]])
+
+
+
+summary(min.cand.models[[1]])
 confint(min.cand.models[[1]])
 ```
 
@@ -439,10 +472,29 @@ cv.cand.models[[15]] <- glmmTMB(cvWTemp_C ~ MaxRTemp_Z + (1 | Pool_ID), data = t
 # }
 aic_table3 <- aictab(cand.set = cv.cand.models, sort = TRUE)
 
-summary(cv.cand.models[[4]])
-r2(cv.cand.models[[4]])
-confint(cv.cand.models[[4]])
 
+r2(cv.cand.models[[1]])
+r2(cv.cand.models[[2]])
+r2(cv.cand.models[[3]])
+r2(cv.cand.models[[4]])
+r2(cv.cand.models[[5]])
+r2(cv.cand.models[[6]])
+r2(cv.cand.models[[7]])
+r2(cv.cand.models[[8]])
+r2(cv.cand.models[[9]])
+r2(cv.cand.models[[10]])
+r2(cv.cand.models[[11]])
+r2(cv.cand.models[[12]])
+r2(cv.cand.models[[13]])
+r2(cv.cand.models[[14]])
+r2(cv.cand.models[[15]])
+
+
+summary(cv.cand.models[[4]])
+confint(cv.cand.models[[4]])
+```
+
+```{r}
 cor(temp.df$cvWTemp_C, temp.df$MaxWTemp_C)
 cor(temp.df$cvWTemp_C, temp.df$MinWTemp_C)
 cor(temp.df$MinWTemp_C, temp.df$MaxWTemp_C)
