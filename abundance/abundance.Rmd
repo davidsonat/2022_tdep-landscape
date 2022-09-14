@@ -561,6 +561,7 @@ r2(dfly.cand.models[[7]])
 
 
 summary(dfly.cand.models[[2]])
+confint(dfly.cand.models[[6]])
 summary(dfly.cand.models[[6]])
 ```
 
