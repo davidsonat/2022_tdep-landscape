@@ -20,6 +20,7 @@ library(performance)
 library(MuMIn)
 library(prediction)
 library(viridis)
+library(car)
 
 temponly.df <- read.csv("temperature_data.csv")
 abiotic.df <- read.csv("abiotic_data.csv")
@@ -243,6 +244,8 @@ r2(temp.cand.models[[13]])
 r2(temp.cand.models[[14]])
 r2(temp.cand.models[[15]])
 
+
+check_collinearity(temp.cand.models[[1]])
 summary(temp.cand.models[[4]])
 confint(temp.cand.models[[4]])
 # write.csv(aic_table, file = "../temperature/aic_table.csv")
