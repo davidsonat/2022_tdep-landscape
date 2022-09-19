@@ -183,7 +183,7 @@ for ( r in 1:num_reps ) {
 
 Pan_Summary.df <- as.data.frame( Summary )
 
-write.csv( Pan_Summary.df, "../pantala/Output_PanSpp.csv" )
+# write.csv( Pan_Summary.df, "../pantala/Output_PanSppNoMort.csv" )
 ```
 
 
@@ -194,36 +194,17 @@ write.csv( Pan_Summary.df, "../pantala/Output_PanSpp.csv" )
 ######## Plots
 
 modelout <- read.csv( "../pantala/Output_PanSpp.csv" )
-# modelout$Predator <- c("Present")
-# modelout2 <- read.csv("../pantala/Output_NoPred.csv")
-# modelout2$Predator <- c("Absent")
-# modelout <- rbind(modelout, modelout2)
-# modelout$Predator <- as.factor(modelout$Predator)
-# 
-# aggregate(modelout$num_survive, by = list(modelout$temp, modelout$Predator), FUN = mean)
-# modelout[is.na(modelout)] = 0
-# 
-# # modelfig <- ggplot( modelout, aes( x = temp, y = num_survive, colour = Predator ) ) +
-# #   geom_smooth( size = 0.35 ) +
-# #   scale_x_continuous( expand = c( 0, 0 ), breaks = c( 20, 24, 28, 32, 36 ) ) +
-# #   scale_y_continuous( expand = c( 0, 0 ) ) +
-# #   coord_cartesian( ylim = c(0, 100)) +
-# #   theme_classic( base_size = 16, base_line_size = 1 ) + 
-# #   theme( panel.grid.major = element_blank(), 
-# #          panel.grid.minor = element_blank(),
-# #          axis.line = element_line( colour = "black" ), 
-# #          panel.spacing = unit( .05, "lines" ), 
-# #          panel.border = element_rect( color = "black", fill = NA, size = 1 ), 
-# #          strip.background = element_rect( color = "black", size = 1 ) ) +
-# #   xlab( "Temperature (°C)" ) +
-# #   ylab( "Surviving Prey" ) +
-# #   theme( aspect.ratio = 1 )
+modelout2 <- read.csv("../pantala/Output_NoPred.csv")
+modelout3 <- read.csv("../pantala/Output_PanSppNoMort.csv")
 
-modelfig <- ggplot( modelout, aes( x = temp, y = num_survive ) ) +
+modelout$propdiff <- (modelout$num_survive - modelout2$num_survive)/(modelout2$num_survive)
+modelout$rawdiff <- modelout$num_survive - modelout2$num_survive
+
+modelfig <- ggplot( modelout, aes( x = temp, y = propdiff ) ) +
   geom_smooth( size = 0.35, colour = "#00BFC4" ) +
   scale_x_continuous( expand = c( 0, 0 ), breaks = c( 20, 24, 28, 32, 36 ) ) +
   scale_y_continuous( expand = c( 0, 0 ) ) +
-  coord_cartesian( ylim = c(0, 100)) +
+  # coord_cartesian( ylim = c(0, 1)) +
   theme_classic( base_size = 11, base_line_size = 0.1 ) +
   theme( panel.border = element_rect( color = "black", fill = NA, size = 0.75 ),
          legend.position = "bottom",

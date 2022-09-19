@@ -421,6 +421,35 @@ mosq_effect.2 <- effect_plot(mosq.cand.models[[11]], pred = Skimmer_Z, interval 
 library(MASS)
 library(ggeffects)
 abundance.df$predicted <- predict(mosq.cand.models[[11]], newdata = abundance.df, type = "response")
+
+
+tempZ_vec <- seq(-3.2, 2.2, by = 0.01) # temp z scores range from ~-3.2 to 2.2
+dflyZ_vec1 <- rep(-0.3621401, length(tempZ_vec)) # 0 dragonflies z score
+dflyZ_vec2 <- rep(-0.05790784, length(tempZ_vec)) # 1 dragonflies z score
+date_vec <- rep("6/1/2021", length(tempZ_vec)) # it needs a date, so let's give it one from the middle of the data set...
+
+nopred.df <- cbind(tempZ_vec, dflyZ_vec1, date_vec)
+nopred.df<- as.data.frame(nopred.df)
+colnames(nopred.df) <- c("MaxTemp_Z", "Skimmer_Z", "Date")
+nopred.df$Date <- as.factor(nopred.df$Date)
+nopred.df$MaxTemp_Z <- as.numeric(nopred.df$MaxTemp_Z)
+nopred.df$Skimmer_Z <- as.numeric(nopred.df$Skimmer_Z)
+nopred.df$predicted <- predict(mosq.cand.models[[11]], allow.new.levels = TRUE, newdata = nopred.df, type = "response")
+
+onepred.df <- cbind(tempZ_vec, dflyZ_vec2, date_vec)
+onepred.df<- as.data.frame(onepred.df)
+colnames(onepred.df) <- c("MaxTemp_Z", "Skimmer_Z", "Date")
+onepred.df$Date <- as.factor(onepred.df$Date)
+onepred.df$MaxTemp_Z <- as.numeric(onepred.df$MaxTemp_Z)
+onepred.df$Skimmer_Z <- as.numeric(onepred.df$Skimmer_Z)
+onepred.df$predicted <- predict(mosq.cand.models[[11]], allow.new.levels = TRUE, newdata = onepred.df, type = "response")
+
+propdiff <- (onepred.df$predicted - nopred.df$predicted)/nopred.df$predicted
+simplot <- cbind(tempZ_vec, propdiff)
+simplot.df <- as.data.frame(simplot)
+plot(x = simplot.df$tempZ_vec, y = simplot.df$propdiff)
+
+
 mosq_effect.3 <- ggplot(data = abundance.df, aes(x = MaxTemp_Z, y = predicted, colour = drgn_presence) ) +
   geom_point( size = 0.75, aes(x = MaxTemp_Z, y = Mosquito, colour = drgn_presence ) ) +
 #  geom_smooth(method = "glm.nb") + Doesn't work since the predicted vals aren't integers
