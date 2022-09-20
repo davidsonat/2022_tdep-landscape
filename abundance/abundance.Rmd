@@ -484,17 +484,21 @@ mosq_effect.plot <- plot_grid( mosq_effect.1, mosq_effect.2, mosq_effect.3, lege
                         rel_heights = c(1, 1, 1, 0.2),
                         align = "hv" )
 
-# mosq_effect.plot <- plot_grid( mosq_effect.3, modelfig, legend,
-#                         labels = c("a)", "b)", ""),
-#                         nrow = 1,
-#                         rel_widths = c(1, 1, 0.3),
-#                         label_y = 0.7 )
-# 
-# 
-# ggsave( "effectplot2.png",
-#         plot = mosq_effect.plot,
-#         units = c("mm"),
-#         dpi = 300)
+mosq_effect.plot <- plot_grid( mosq_effect.3, modelfig,
+                        labels = c("a)", "b)"),
+                        nrow = 1,
+                        label_y = 0.7,
+                        align = 'hv')
+
+mosq_effect.plot <- plot_grid( mosq_effect.plot, legend,
+                               nrow = 1,
+                              rel_widths = c(1, 0.2))
+
+
+ggsave( "effectplot2.png",
+        plot = mosq_effect.plot,
+        units = c("mm"),
+        dpi = 300)
 
 ```
 

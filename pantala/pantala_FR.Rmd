@@ -198,10 +198,11 @@ modelout2 <- read.csv("../pantala/Output_NoPred.csv")
 modelout3 <- read.csv("../pantala/Output_PanSppNoMort.csv")
 
 modelout$propdiff <- (modelout$num_survive - modelout2$num_survive)/(modelout2$num_survive)
+modelout$propsurv <- modelout$num_survive/300
 modelout$rawdiff <- modelout$num_survive - modelout2$num_survive
 
-modelfig <- ggplot( modelout, aes( x = temp, y = propdiff ) ) +
-  geom_smooth( size = 0.35, colour = "#00BFC4" ) +
+modelfig <- ggplot( modelout, aes( x = temp, y = propsurv ) ) +
+  geom_smooth( size = 0.35, linetype = 2, colour = "#00BFC4" ) +
   scale_x_continuous( expand = c( 0, 0 ), breaks = c( 20, 24, 28, 32, 36 ) ) +
   scale_y_continuous( expand = c( 0, 0 ) ) +
   # coord_cartesian( ylim = c(0, 1)) +
@@ -210,13 +211,13 @@ modelfig <- ggplot( modelout, aes( x = temp, y = propdiff ) ) +
          legend.position = "bottom",
          aspect.ratio = 1) + 
   xlab( "Temperature (°C)" ) +
-  ylab( "Predicted Abundance" ) +
+  ylab( "Proportional Survival" ) +
   theme( aspect.ratio = 1 )
 
 
 
-library(cowplot)
-Fig1.plot <- plot_grid(ddep.plot, modelfig, ncol = 1, align = c("v"), axis = c("l") )
+# library(cowplot)
+# Fig1.plot <- plot_grid(ddep.plot, modelfig, ncol = 1, align = c("v"), axis = c("l") )
 
 # ggsave("../pantala/panelCD.png", plot = Fig1.plot, units = c( "mm" ), dpi = 300 )
 ```
