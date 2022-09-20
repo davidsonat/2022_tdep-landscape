@@ -14,7 +14,6 @@ library(dotwhisker)
 library(broom)
 library(broom.mixed)
 library(jtools)
-library(viridis)
 library(AICcmodavg)
 ```
 
@@ -124,25 +123,6 @@ Note: a temperature Z score of 1 means that the pool reaches a daily maximum tem
 
 
 ## Models Including Flooding and Other Variables
-
-```{r, echo = FALSE}
-
-mosq_days <- glmmTMB(Mosquito ~ Skimmer_Z * MaxTemp_Z + Days_Between_Z + (1 | Pool_ID), ziformula = ~., family = truncated_nbinom2, data = abundance.df )
-summary(mosq_days)
-```
-
-Including days since last flood doesn't improve the overall AIC, and doesn't shake out as a significant term.
-
-```{r, echo = FALSE}
-abundance.df$FloodedAt_Z <- (abundance.df$FloodedAt - mean(abundance.df$FloodedAt))/sd(abundance.df$FloodedAt)
-
-mosq_floodheight <- glmmTMB(Mosquito ~ Skimmer_Z * MaxTemp_Z + FloodedAt_Z + Days_Between_Z + (1 | Pool_ID), ziformula = ~., family = truncated_nbinom2, data = abundance.df )
-summary(mosq_floodheight)
-```
-
-Including flood height AND days since last flood improves AIC and both are significant terms in the zero inflation model. This suggests that lower flood height pools are more likely to have mosquitoes, and pools that have flooded more recently also have a higher likelihood.
-
-This needs some playing with for model selection.
 
 ```{r, echo = FALSE}
 # Full ZI Model
@@ -372,7 +352,6 @@ Fig4.plot <- plot_grid( coeff.plot1, coeff.plot2,
                         nrow = 2,
                         align = "hv" )
 
-
 # ggsave( "Fig4.png",
 #         plot = Fig4.plot,
 #         units = c("mm"),
@@ -484,17 +463,21 @@ mosq_effect.plot <- plot_grid( mosq_effect.1, mosq_effect.2, mosq_effect.3, lege
                         rel_heights = c(1, 1, 1, 0.2),
                         align = "hv" )
 
-# mosq_effect.plot <- plot_grid( mosq_effect.3, modelfig, legend,
-#                         labels = c("a)", "b)", ""),
-#                         nrow = 1,
-#                         rel_widths = c(1, 1, 0.3),
-#                         label_y = 0.7 )
-# 
-# 
-# ggsave( "effectplot2.png",
-#         plot = mosq_effect.plot,
-#         units = c("mm"),
-#         dpi = 300)
+mosq_effect.plot <- plot_grid( mosq_effect.3, modelfig,
+                        labels = c("a)", "b)"),
+                        nrow = 1,
+                        label_y = 0.7,
+                        align = 'hv')
+
+mosq_effect.plot <- plot_grid( mosq_effect.plot, legend,
+                               nrow = 1,
+                              rel_widths = c(1, 0.2))
+
+
+ggsave( "effectplot2.png",
+        plot = mosq_effect.plot,
+        units = c("mm"),
+        dpi = 300)
 
 ```
 
