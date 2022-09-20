@@ -19,12 +19,12 @@ library(glmmTMB)
 library(performance)
 library(MuMIn)
 library(prediction)
-library(viridis)
 library(car)
 
 temponly.df <- read.csv("temperature_data.csv")
 abiotic.df <- read.csv("abiotic_data.csv")
 temp.df <- merge(temponly.df, abiotic.df)
+temp.df$Date <- as.factor(temp.df$Date)
 ```
 
 # Histograms
@@ -56,35 +56,8 @@ min.hist <- ggplot(temp.df, aes(x = MinWTemp_C)) +
   theme( panel.border = element_rect( color = "black", fill = NA, size = 0.75 ),
          legend.position = "none",
          aspect.ratio = 1)
-```
 
 
-For this analysis, I'm choosing to focus in on maximum water temperature as our dependent variable, because it has a nice and pretty distribution and correlates well with mean water temperature (which is sort of what we're more interested in here). We could easily use mean temperature as well, but I am hesitant to use it because it does not represent a true daily "mean", because our data were collected over 8 hour periods and not a full 24 hours.
-
-## Predictor Variables
-
-```{r, echo = FALSE, warning = FALSE}
-temp.df$DistRC_m <- as.numeric(temp.df$DistRC_m)
-
-temp.df$Depth_cm <- as.numeric(temp.df$Depth_cm)
-temp.df$Depth_m <- temp.df$Depth_cm/100
-
-temp.df$SurfArea_cm2 <- as.numeric(temp.df$SurfArea_cm2)
-temp.df$SurfArea_m2 <- temp.df$SurfArea_cm2/10000
-
-temp.df$Volume_cm3 <- as.numeric(temp.df$Volume_cm3)
-temp.df$Volume_m3 <- temp.df$Volume_cm3/1000000
-
-temp.df$Pct_Shaded <- as.numeric(temp.df$Pct_Shaded)
-temp.df$Pct_Shaded <- temp.df$Pct_Shaded/100
-
-hist(temp.df$MaxATemp_C)
-hist(temp.df$SurfArea_m2)
-hist(temp.df$Volume_m3)
-hist(temp.df$Depth_m)
-hist(temp.df$Pct_Shaded)
-
-temp.df$Date <- as.factor(temp.df$Date)
 
 # Across pool variation
 aggregate(temp.df$MaxWTemp_C, by = list(temp.df$Date), FUN = max)
@@ -140,9 +113,23 @@ mintemp_cv
 
 ## Applying Transformations
 
-Lots of right-skewing going on, so we'll do a few transformations. Z-scores for everything.
+Rescaling and Z-scores for everything.
 
 ```{r, warning = FALSE}
+temp.df$DistRC_m <- as.numeric(temp.df$DistRC_m)
+
+temp.df$Depth_cm <- as.numeric(temp.df$Depth_cm)
+temp.df$Depth_m <- temp.df$Depth_cm/100
+
+temp.df$SurfArea_cm2 <- as.numeric(temp.df$SurfArea_cm2)
+temp.df$SurfArea_m2 <- temp.df$SurfArea_cm2/10000
+
+temp.df$Volume_cm3 <- as.numeric(temp.df$Volume_cm3)
+temp.df$Volume_m3 <- temp.df$Volume_cm3/1000000
+
+temp.df$Pct_Shaded <- as.numeric(temp.df$Pct_Shaded)
+temp.df$Pct_Shaded <- temp.df$Pct_Shaded/100
+
 temp.df$DistRC_Z <- (temp.df$DistRC_m - mean(temp.df$DistRC_m))/sd(temp.df$DistRC_m)
 temp.df$Depth_Z <- (temp.df$Depth_cm - mean(temp.df$Depth_cm))/sd(temp.df$Depth_cm)
 temp.df$SurfArea_Z <- (temp.df$SurfArea_cm2 - mean(temp.df$SurfArea_cm2))/sd(temp.df$SurfArea_cm2)
@@ -150,8 +137,6 @@ temp.df$Volume_Z <- (temp.df$Volume_cm3 - mean(temp.df$Volume_cm3))/sd(temp.df$V
 temp.df$Pct_Shaded_Z <- (temp.df$Pct_Shaded - mean(temp.df$Pct_Shaded))/sd(temp.df$Pct_Shaded)
 temp.df$MaxRTemp_Z <- (temp.df$MaxRTemp_C - mean(temp.df$MaxRTemp_C))/sd(temp.df$MaxRTemp_C)
 temp.df$MaxATemp_Z <- (temp.df$MaxATemp_C - mean(temp.df$MaxATemp_C))/sd(temp.df$MaxATemp_C)
-
-temp.df$Date <- as.factor(temp.df$Date)
 ```
 
 
@@ -222,12 +207,7 @@ Continuous, untransformed shade actually provides a lower AIC value than binning
 Including distance from river channel improves things too, but only marginally, and oddly, the parameter estimates for it aren't significant.
 
 ```{r, echo = FALSE, warning = FALSE}
-# mod.names <- list()
-# for (i in 1:length(temp.cand.models)){
-# mod.names[i] <- as.character(formula(temp.cand.models[[i]], component = c("cond")))
-# }
 aic_table <- aictab(cand.set = temp.cand.models, sort = TRUE)
-library(performance)
 r2(temp.cand.models[[1]])
 r2(temp.cand.models[[2]])
 r2(temp.cand.models[[3]])
@@ -251,7 +231,7 @@ confint(temp.cand.models[[4]])
 # write.csv(aic_table, file = "../temperature/aic_table.csv")
 ```
 
-Ultimately, the best model includes Pool ID as a random effect, and depth and shading as fixed effects. Its AIC is 999.98 (nothing else comes particularly close), with a marginal r^2^ of 0.52 and a conditional of 0.87. It's worth noting that Pool ID and lat/long coords (outlined below) are virtually interchangeable here, so we will use Pool ID because it makes the math and interpretation simpler.
+Ultimately, the best model includes Pool ID as a random effect, and depth and shading as fixed effects.
 
 ```{r}
 library(dotwhisker)
@@ -291,18 +271,6 @@ mean(predict.df$diffpred)
 
 Interesting. Some over/underestimating at the tails, but most pools are within +/- 5%.
 
-Million dollar question: can we plot it?
-
-```{r, echo = FALSE, warning = FALSE}
-ggplot(data = predict.df, aes(y = lat, x = long, colour = fitted)) +
-  geom_point(size = 3.5, fill = "black") + 
-  scale_colour_viridis() +
-  theme(panel.background = element_rect(fill = "black", colour = "black", size = 0.5, linetype = "solid"),
-        panel.grid.major = element_blank(),
-        panel.grid.minor = element_blank()) +
-  labs(colour = "Temp (°C)")
-```
-
 The next step will be to challenge the model (and ourselves) a bit. Can we simulate a day on which the river temperature is 25°C, as an example, and predict temperatures for the whole system? I will need a data set containing pool dimensions and the densiometer data for the full system. Fortunately, I've made one.
 
 ```{r, echo = FALSE, warning = FALSE}
@@ -331,8 +299,9 @@ predicted.df$MaxTemp_Z <- (predicted.df$MaxTemp_Predicted_C - mean(predicted.df$
 ```
 
 
-
 # Min Temperature Model
+
+Some subsequent models, for minimum temperatures and the coefficient of variation.
 
 ```{r}
 min.cand.models <- list()
@@ -382,10 +351,7 @@ min.cand.models[[13]] <- glmmTMB(MinWTemp_C ~ Pct_Shaded_Z + (1 | Pool_ID), data
 # River temp alone
 min.cand.models[[14]] <- glmmTMB(MinWTemp_C ~ MaxRTemp_Z + (1 | Pool_ID), data = temp.df )
 
-mod.names <- list()
-# for (i in 1:length(min.cand.models)){
-# mod.names[i] <- as.character(formula(min.cand.models[[i]], component = c("cond")))
-# }
+
 aic_table2 <- aictab(cand.set = min.cand.models, sort = TRUE)
 
 r2(min.cand.models[[1]])
@@ -404,7 +370,6 @@ r2(min.cand.models[[13]])
 r2(min.cand.models[[14]])
 
 
-
 summary(min.cand.models[[1]])
 confint(min.cand.models[[1]])
 ```
@@ -418,6 +383,7 @@ predicted.df <- cbind(predicted.df, predict3.df)
 names(predicted.df)[names(predicted.df) == 'fit'] <- 'MinTemp_Predicted_C'
 names(predicted.df)[names(predicted.df) == 'se.fit'] <- 'MinTemp_SE'
 ```
+
 
 # CV Temperature Model
 
@@ -475,7 +441,6 @@ cv.cand.models[[15]] <- glmmTMB(cvWTemp_C ~ MaxRTemp_Z + (1 | Pool_ID), data = t
 # }
 aic_table3 <- aictab(cand.set = cv.cand.models, sort = TRUE)
 
-
 r2(cv.cand.models[[1]])
 r2(cv.cand.models[[2]])
 r2(cv.cand.models[[3]])
@@ -497,6 +462,8 @@ summary(cv.cand.models[[4]])
 confint(cv.cand.models[[4]])
 ```
 
+Model 4 wins here, but the coefficient estimates are all pretty small. It looks like depth, shading, and river temperature all reduce temperature variability. R2 is ok, but a lot of it seems to be coming from the random effect of Pool ID. Conditional is 0.822, marginal is only 0.385. It's worth noting too that cv is correlated with both maximum (r = 0.66; so warmer = more variation) and minimum temps (r = -0.55; so cooler = more variation).
+
 ```{r}
 cor(temp.df$cvWTemp_C, temp.df$MaxWTemp_C)
 cor(temp.df$cvWTemp_C, temp.df$MinWTemp_C)
@@ -511,6 +478,3 @@ names(predicted.df)[names(predicted.df) == 'se.fit'] <- 'CVTemp_SE'
 
 # write.csv(predicted.df, file = "temp_predictions.csv")
 ```
-
-Model 4 wins here, but the coefficient estimates are all pretty small. It looks like depth, shading, and river temperature all reduce temperature variability. R2 is ok, but a lot of it seems to be coming from the random effect of Pool ID. Conditional is 0.822, marginal is only 0.385. It's worth noting too that cv is correlated with both maximum (r = 0.66; so warmer = more variation) and minimum temps (r = -0.55; so cooler = more variation).
-
