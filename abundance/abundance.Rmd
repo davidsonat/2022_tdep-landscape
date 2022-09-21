@@ -13,8 +13,10 @@ library(DHARMa)
 library(dotwhisker)
 library(broom)
 library(broom.mixed)
-library(jtools)
+library(ggeffects)
 library(AICcmodavg)
+library(performance)
+library(cowplot)
 ```
 
 ```{r, echo = FALSE, warnings = FALSE, message = FALSE}
@@ -29,6 +31,8 @@ abiotic.df$Pool_ID <- as.factor(abiotic.df$Pool_ID)
 abundance.df <- merge(abundance.df, abiotic.df)
 abundance.df$Skimmer_Z <- ( abundance.df$Skimmer_Dragonfly - mean( abundance.df$Skimmer_Dragonfly ) )/sd( abundance.df$Skimmer_Dragonfly )
 abundance.df$Days_Between_Z <- ( abundance.df$Days_Between_Flood_Sampling - mean( abundance.df$Days_Between_Flood_Sampling ) )/sd( abundance.df$Days_Between_Flood_Sampling )
+abundance.df$drgn_presence <- ifelse(abundance.df$Skimmer_Dragonfly > 0, 'Present', 'Absent')
+abundance.df$drgn_presence <- as.factor(abundance.df$drgn_presence)
 ```
 
 ## Model Family
@@ -76,50 +80,6 @@ testZeroInflation(mosq_trunc_nbinom2)
 ```
 
 The truncated negative binomial model seems to work the best (lowest AIC), and indicates a positive effect of temperature on mosquito abundance, a negative effect of dragonflies, and a positive interaction term. This suggests that mosquitoes are more abundant in warmer pools, less abundant where dragonflies are present, but temperature may mitigate this effect somewhat.
-
-
-```{r, echo = FALSE, warnings = FALSE}
-plot.df <- broom::tidy(mosq_trunc_nbinom2)
-plot.df$model <- c("nbinom", "nbinom", "nbinom", "nbinom", "zi", "zi", "zi", "zi", "zi", "zi")
-plot.df <- plot.df[-c(9,10),]
-dwplot(plot.df, 
-       vline = geom_vline(xintercept = 0, colour = "red", linetype = 2), 
-       dot_args = list(size = 4), 
-       line_args = list(size = 6)) + 
-  theme_classic(base_size = 16) 
-effect_plot(mosq_trunc_nbinom2, pred = MaxTemp_Z, interval = TRUE, plot.points = TRUE) 
-effect_plot(mosq_trunc_nbinom2, pred = Skimmer_Z, interval = TRUE, plot.points = TRUE)
-
-abundance.df$drgn_presence <- ifelse(abundance.df$Skimmer_Dragonfly > 0, 'Present', 'Absent')
-abundance.df$drgn_presence <- as.factor(abundance.df$drgn_presence)
-abundance.df$rel_temp <- ifelse(abundance.df$MaxTemp_Z > 0, 'Above Mean', 'Below Mean')
-abundance.df$rel_temp <- as.factor(abundance.df$rel_temp)
-abundance2.df <- abundance.df[which(abundance.df$Mosquito > 0),]
-abundance3.df <- aggregate(abundance2.df$Mosquito, by = list(abundance2.df$rel_temp, abundance2.df$drgn_presence), FUN = 'mean')
-colnames(abundance3.df) <- c("rel_temp", "drgn_presence", "Mosquito")
-samplesize <- aggregate(abundance2.df$Mosquito, by = list(abundance2.df$rel_temp, abundance2.df$drgn_presence), FUN = 'length')
-stdev <- aggregate(abundance2.df$Mosquito, by = list(abundance2.df$rel_temp, abundance2.df$drgn_presence), FUN = 'sd')
-abundance3.df$std.err <- stdev[,3]/sqrt(samplesize[,3])
-
-interaction.plot <- ggplot(data = abundance3.df, aes(y = Mosquito, x = drgn_presence, colour = rel_temp)) +
-  geom_point(size = 5) +
-  geom_errorbar(aes(ymin = Mosquito - std.err, ymax = Mosquito + std.err), width = 0.25, size = 0.75) +
-  theme_classic( base_size = 24, base_line_size = 1 ) +   
-  scale_y_log10(expand = c(0,0)) +
-  xlab("Dragonfly Nymphs") +
-  ylab("Mosquito Abundance") +
-  theme(panel.grid.major = element_blank(),
-        panel.grid.minor = element_blank(),
-        aspect.ratio = 1) +
-  labs(colour = "Temperature")
-
-# ggsave( "interaction.png",
-#         plot = interaction.plot,
-#         units = c("mm"),
-#         dpi = 300)
-```
-
-Note: a temperature Z score of 1 means that the pool reaches a daily maximum temperature of around 34$^\circ$C, and the mean number of skimmers (i.e., Z = 0) was a little over 1.
 
 
 ## Models Including Flooding and Other Variables
@@ -297,8 +257,7 @@ mosq.cand.models[[49]] <- glmmTMB(Mosquito ~ MaxTemp_Z * Skimmer_Z + Days_Betwee
 ```{r}
 aic_table <- aictab(cand.set = mosq.cand.models[8:14], sort = TRUE)
 aic_table
-# write.csv(aic_table, file = "../abundance/aic_table.csv")
-library(performance)
+
 r2(mosq.cand.models[[8]])
 r2(mosq.cand.models[[9]])
 r2(mosq.cand.models[[10]])
@@ -313,172 +272,99 @@ confint(mosq.cand.models[[11]])
 
 
 
-```{r, echo = FALSE, warnings = FALSE}
-plot1.df <- broom::tidy(mosq.cand.models[[11]])
-
-# Issue is with pool level random effect?
-plot1.df$model <- c("nbinom", "nbinom", "nbinom", "nbinom", "zi", "zi", "zi", "zi", "cond", "zi")
-plot1.df <- plot1.df[-c(1,5,9,10),]
-plot1.df$term <- c("Max Temp. (°C)", "Dragonflies", "Temp:Dragonflies", "Max Temp. (°C)", "Dragonflies", "Temp:Dragonflies")
-plot2.df <- plot1.df[1:3,]
-plot3.df <- plot1.df[4:6,]
-
-
-coeff1.df <- subset(plot1.df, model == "zi")
-coeff.plot1 <- dwplot(coeff1.df, 
-       vline = geom_vline(xintercept = 0, colour = "grey80", linetype = 2, size = 1), 
-       dot_args = list(size = 4, colour = "#F8766D"), 
-       whisker_args = list(size = 0.75, colour = "#F8766D")) + 
-  theme_classic( base_size = 16, base_line_size = 1 ) + 
-  xlab("Coefficient Estimate") +
-  theme( panel.border = element_rect( color = "black", fill = NA, size = 0.75 ),
-         legend.position = "none",
-         aspect.ratio = 1)
-
-coeff2.df <- subset(plot1.df, model == "nbinom")
-coeff.plot2 <- dwplot(coeff2.df, 
-       vline = geom_vline(xintercept = 0, colour = "grey80", linetype = 2, size = 1), 
-       dot_args = list(size = 4, colour = "#619CFF"), 
-       whisker_args = list(size = 0.75, colour = "#619CFF")) + 
-  theme_classic( base_size = 16, base_line_size = 1 ) + 
-  xlab("Coefficient Estimate") +
-  theme( panel.border = element_rect( color = "black", fill = NA, size = 0.75 ),
-         legend.position = "none",
-         aspect.ratio = 1)
-
-library(cowplot)
-Fig4.plot <- plot_grid( coeff.plot1, coeff.plot2,
-                        labels = c("a)", "b)"),
-                        nrow = 2,
-                        align = "hv" )
-
-# ggsave( "Fig4.png",
-#         plot = Fig4.plot,
-#         units = c("mm"),
-#         dpi = 300 )
-
-
-mosq_effect.1 <- effect_plot(mosq.cand.models[[11]], pred = MaxTemp_Z, interval = TRUE, plot.points = TRUE, y.label = "Prey Abundance", x.label = "Max Temperature (°C)", point.size = 0.75, line.thickness = 0.35) +  
-  theme_classic( base_size = 11, base_line_size = 0.1 ) + 
+```{r}
+temp_effect <- ggpredict(mosq.cand.models[[11]], terms = c("MaxTemp_Z [all]"), ci.lvl = 0.95, type = "fe.zi")
+temp_effect.plot <- ggplot(temp_effect, aes(x = x, y = predicted)) +
+  geom_line() +
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high), alpha = .1) +
+  geom_point(abundance.df, mapping = aes(x = MaxTemp_Z, y = Mosquito), size = 0.75) +
+  theme_classic( base_size = 11, base_line_size = 0.1 ) +
   scale_y_continuous( expand = c(0, 0) ) +
-  scale_x_continuous( expand = c(0, 0), 
+  scale_x_continuous( expand = c(0, 0),
                       breaks = c((25 - mean(abundance.df$MaxTemp_Predicted_C))/sd(abundance.df$MaxTemp_Predicted_C),
                                  (27.5 - mean(abundance.df$MaxTemp_Predicted_C))/sd(abundance.df$MaxTemp_Predicted_C),
                                  (30 - mean(abundance.df$MaxTemp_Predicted_C))/sd(abundance.df$MaxTemp_Predicted_C),
                                  (32.5 - mean(abundance.df$MaxTemp_Predicted_C))/sd(abundance.df$MaxTemp_Predicted_C),
                                  (35 - mean(abundance.df$MaxTemp_Predicted_C))/sd(abundance.df$MaxTemp_Predicted_C)),
-                      labels = c(25, 27.5, 30, 32.5, 35), 
-                      limits = c((25 - mean(abundance.df$MaxTemp_Predicted_C))/sd(abundance.df$MaxTemp_Predicted_C), 
-                                 (35 - mean(abundance.df$MaxTemp_Predicted_C))/sd(abundance.df$MaxTemp_Predicted_C) ) ) +
+                      labels = c(27.5, 30, 32.5, 35),
+                      limits = c((26.5 - mean(abundance.df$MaxTemp_Predicted_C))/sd(abundance.df$MaxTemp_Predicted_C),
+                                 (36.125 - mean(abundance.df$MaxTemp_Predicted_C))/sd(abundance.df$MaxTemp_Predicted_C) ) ) +
   coord_cartesian(ylim = c(0, 500)) +
+  xlab("Max Temperature (°C)") +
+  ylab("Prey Abundance") +
   theme( panel.border = element_rect( color = "black", fill = NA, size = 0.75 ),
          legend.position = "none",
          aspect.ratio = 1)
 
-  
-mosq_effect.2 <- effect_plot(mosq.cand.models[[11]], pred = Skimmer_Z, interval = TRUE, plot.points = TRUE, y.label = "Prey Abundance", x.label = "Predator Abundance", point.size = 0.75, line.thickness = 0.35) +  
+
+
+pred_effect <- ggpredict(mosq.cand.models[[11]], terms = c("Skimmer_Z [all]"), ci.lvl = 0.95, type = "fe.zi")
+pred_effect.plot <- ggplot(pred_effect, aes(x, predicted)) +
+  geom_line() +
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high), alpha = .1) +
+  geom_point(abundance.df, mapping = aes(x = Skimmer_Z, y = Mosquito), size = 0.75) + 
   theme_classic( base_size = 11, base_line_size = 0.1 ) +
   scale_x_continuous( expand = c(0, 0), 
                       breaks = c((0 - mean(abundance.df$Skimmer_Dragonfly))/sd(abundance.df$Skimmer_Dragonfly),
-                                                   (5 - mean(abundance.df$Skimmer_Dragonfly))/sd(abundance.df$Skimmer_Dragonfly),
-                                                   (10 - mean(abundance.df$Skimmer_Dragonfly))/sd(abundance.df$Skimmer_Dragonfly),
-                                                   (15 - mean(abundance.df$Skimmer_Dragonfly))/sd(abundance.df$Skimmer_Dragonfly),
-                                                   (20 - mean(abundance.df$Skimmer_Dragonfly))/sd(abundance.df$Skimmer_Dragonfly),
-                                                   (25 - mean(abundance.df$Skimmer_Dragonfly))/sd(abundance.df$Skimmer_Dragonfly),
-                                                   (30 - mean(abundance.df$Skimmer_Dragonfly))/sd(abundance.df$Skimmer_Dragonfly)), 
-                      labels = c(0, 5, 10, 15, 20, 25, 30),
+                                                   (2 - mean(abundance.df$Skimmer_Dragonfly))/sd(abundance.df$Skimmer_Dragonfly),
+                                                   (4 - mean(abundance.df$Skimmer_Dragonfly))/sd(abundance.df$Skimmer_Dragonfly),
+                                                   (6 - mean(abundance.df$Skimmer_Dragonfly))/sd(abundance.df$Skimmer_Dragonfly),
+                                                   (8 - mean(abundance.df$Skimmer_Dragonfly))/sd(abundance.df$Skimmer_Dragonfly),
+                                                   (10 - mean(abundance.df$Skimmer_Dragonfly))/sd(abundance.df$Skimmer_Dragonfly)),
+                      labels = c(0, 2, 4, 6, 8, 10),
                       limits = c((0 - mean(abundance.df$Skimmer_Dragonfly))/sd(abundance.df$Skimmer_Dragonfly), 
                                  (10 - mean(abundance.df$Skimmer_Dragonfly))/sd(abundance.df$Skimmer_Dragonfly)) ) +
   scale_y_continuous( expand = c(0, 0) ) +
-  coord_cartesian(ylim = c(0, 500)) +
+  coord_cartesian(ylim = c(0, 50)) +
+  xlab("Predator Abundance") +
+  ylab("Prey Abundance") +
   theme( panel.border = element_rect( color = "black", fill = NA, size = 0.75 ),
          legend.position = "none",
          aspect.ratio = 1)
 
 
-# Maybe an axis transformation would help? log doesn't seem to do it though
-library(MASS)
-library(ggeffects)
-abundance.df$predicted <- predict(mosq.cand.models[[11]], newdata = abundance.df, type = "response")
 
-
-tempZ_vec <- seq(-3.2, 2.2, by = 0.01) # temp z scores range from ~-3.2 to 2.2
-dflyZ_vec1 <- rep(-0.3621401, length(tempZ_vec)) # 0 dragonflies z score
-dflyZ_vec2 <- rep(-0.05790784, length(tempZ_vec)) # 1 dragonflies z score
-date_vec <- rep("6/1/2021", length(tempZ_vec)) # it needs a date, so let's give it one from the middle of the data set...
-
-nopred.df <- cbind(tempZ_vec, dflyZ_vec1, date_vec)
-nopred.df<- as.data.frame(nopred.df)
-colnames(nopred.df) <- c("MaxTemp_Z", "Skimmer_Z", "Date")
-nopred.df$Date <- as.factor(nopred.df$Date)
-nopred.df$MaxTemp_Z <- as.numeric(nopred.df$MaxTemp_Z)
-nopred.df$Skimmer_Z <- as.numeric(nopred.df$Skimmer_Z)
-nopred.df$predicted <- predict(mosq.cand.models[[11]], allow.new.levels = TRUE, newdata = nopred.df, type = "response")
-
-onepred.df <- cbind(tempZ_vec, dflyZ_vec2, date_vec)
-onepred.df<- as.data.frame(onepred.df)
-colnames(onepred.df) <- c("MaxTemp_Z", "Skimmer_Z", "Date")
-onepred.df$Date <- as.factor(onepred.df$Date)
-onepred.df$MaxTemp_Z <- as.numeric(onepred.df$MaxTemp_Z)
-onepred.df$Skimmer_Z <- as.numeric(onepred.df$Skimmer_Z)
-onepred.df$predicted <- predict(mosq.cand.models[[11]], allow.new.levels = TRUE, newdata = onepred.df, type = "response")
-
-propdiff <- (onepred.df$predicted - nopred.df$predicted)/nopred.df$predicted
-simplot <- cbind(tempZ_vec, propdiff)
-simplot.df <- as.data.frame(simplot)
-plot(x = simplot.df$tempZ_vec, y = simplot.df$propdiff)
-
-
-mosq_effect.3 <- ggplot(data = abundance.df, aes(x = MaxTemp_Z, y = predicted, colour = drgn_presence) ) +
-  geom_point( size = 0.75, aes(x = MaxTemp_Z, y = Mosquito, colour = drgn_presence ) ) +
-#  geom_smooth(method = "glm.nb") + Doesn't work since the predicted vals aren't integers
-  geom_smooth(size = 0.35, aes( x = MaxTemp_Z, y = predicted, colour = drgn_presence ), 
-                                method = 'glm', formula = y~x, method.args = list(family = gaussian(link = 'log'))) +
-  scale_x_continuous( expand = c(0, 0), 
+int_effect <- ggpredict(mosq.cand.models[[11]], terms = c("MaxTemp_Z", "Skimmer_Z"), ci.lvl = 0.95, type = "fe.zi")
+int_effect <- ggpredict(mosq.cand.models[[11]], terms = c("MaxTemp_Z [all]", "Skimmer_Z [all]"), ci.lvl = 0.95, type = "fe.zi")
+int_effect <- int_effect[ which(int_effect$group == '-0.36' | int_effect$group == '-0.06' | int_effect$group == '0.25'), ] # This corresponds to 0, 1, or 2 skimmers
+int_effect.obs <- abundance.df[ which(abundance.df$Skimmer_Dragonfly == '0' | abundance.df$Skimmer_Dragonfly == '1' | abundance.df$Skimmer_Dragonfly == '2'), ] # Grab the observed values
+int_effect.obs$Skimmer_Z <- round(int_effect.obs$Skimmer_Z, digits = 2) # Round off
+int_effect.obs$Skimmer_Z <- as.factor(int_effect.obs$Skimmer_Z) # Convert to factor
+int_effect.plot <- ggplot(int_effect, aes(x, predicted, colour = group)) +
+  geom_line() +
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group), alpha = 0.25, show.legend = F, colour = NA) +
+  geom_point(int_effect.obs, mapping = aes(x = MaxTemp_Z, y = Mosquito, colour = Skimmer_Z), size = 0.75) +
+  theme_classic( base_size = 11, base_line_size = 0.1 ) +
+  scale_y_continuous( expand = c(0, 0) ) +
+  scale_x_continuous( expand = c(0, 0),
                       breaks = c((25 - mean(abundance.df$MaxTemp_Predicted_C))/sd(abundance.df$MaxTemp_Predicted_C),
                                  (27.5 - mean(abundance.df$MaxTemp_Predicted_C))/sd(abundance.df$MaxTemp_Predicted_C),
                                  (30 - mean(abundance.df$MaxTemp_Predicted_C))/sd(abundance.df$MaxTemp_Predicted_C),
                                  (32.5 - mean(abundance.df$MaxTemp_Predicted_C))/sd(abundance.df$MaxTemp_Predicted_C),
                                  (35 - mean(abundance.df$MaxTemp_Predicted_C))/sd(abundance.df$MaxTemp_Predicted_C)),
-                      labels = c(25, 27.5, 30, 32.5, 35), 
-                      limits = c((25 - mean(abundance.df$MaxTemp_Predicted_C))/sd(abundance.df$MaxTemp_Predicted_C), 
-                                 (35 - mean(abundance.df$MaxTemp_Predicted_C))/sd(abundance.df$MaxTemp_Predicted_C) ) ) +
-  scale_y_continuous( expand = c(0, 0) ) +
-  coord_cartesian(ylim = c(0, 100) ) +
-  ylab("Observed Abundance") +
+                      labels = c(25, 27.5, 30, 32.5, 35),
+                      limits = c((26.5 - mean(abundance.df$MaxTemp_Predicted_C))/sd(abundance.df$MaxTemp_Predicted_C),
+                                 (36.125 - mean(abundance.df$MaxTemp_Predicted_C))/sd(abundance.df$MaxTemp_Predicted_C) ) ) +
+  coord_cartesian(ylim = c(0, 500)) +
+  scale_colour_discrete(name = "Predators", labels = c('0', '1', '2')) +
   xlab("Max Temperature (°C)") +
-  scale_colour_discrete(name = "Predators") + 
-  theme_classic( base_size = 11, base_line_size = 0.1 ) +
+  ylab("Prey Abundance") +
   theme( panel.border = element_rect( color = "black", fill = NA, size = 0.75 ),
-         legend.position = "right",
+         legend.position = "bottom",
          aspect.ratio = 1)
 
+legend <- get_legend(int_effect.plot)
+int_effect.plot <- int_effect.plot + theme(legend.position = "none")
 
-legend <- get_legend(mosq_effect.3)
-mosq_effect.3 <- mosq_effect.3 + theme(legend.position = "none")
-mosq_effect.plot <- plot_grid( mosq_effect.1, mosq_effect.2, mosq_effect.3, legend,
-                        labels = c("a)", "b)", "c)", ""),
-                        nrow = 4,
-                        label_x = 0.3,
-                        rel_heights = c(1, 1, 1, 0.2),
-                        align = "hv" )
+Fig5.plot <- plot_grid(temp_effect.plot, pred_effect.plot, int_effect.plot, legend,
+                       ncol = 1, 
+                       align = c("hv"), 
+                       axis = c("l"),
+                       labels = c("a)", "b)", "c)", ""),
+                       label_x = 0.25,
+                       rel_heights = c(1,1,1,0.2))
 
-mosq_effect.plot <- plot_grid( mosq_effect.3, modelfig,
-                        labels = c("a)", "b)"),
-                        nrow = 1,
-                        label_y = 0.7,
-                        align = 'hv')
-
-mosq_effect.plot <- plot_grid( mosq_effect.plot, legend,
-                               nrow = 1,
-                              rel_widths = c(1, 0.2))
-
-
-ggsave( "effectplot2.png",
-        plot = mosq_effect.plot,
-        units = c("mm"),
-        dpi = 300)
-
+ggsave("../abundance/newplot.png", plot = Fig5.plot, units = c( "mm" ), dpi = 300, bg = "white" )
 ```
 
 
