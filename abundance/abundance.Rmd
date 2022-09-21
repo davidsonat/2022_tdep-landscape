@@ -368,6 +368,15 @@ ggsave("../abundance/newplot.png", plot = Fig5.plot, units = c( "mm" ), dpi = 30
 ```
 
 
+```{r}
+# Humoring James
+nopred <- int_effect[which(int_effect$group == '-0.36'),]
+onepred <- int_effect[which(int_effect$group == '-0.06'),]
+predeffect <- (onepred$predicted - nopred$predicted)/nopred$predicted
+plot(x = onepred$x, y = predeffect, ylab = "Net Predator Effect", xlab = "Max Temperature (Z)")
+```
+
+
 # Models of Dragonfly Abundance
 
 ## Model Family
