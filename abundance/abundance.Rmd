@@ -85,269 +85,72 @@ The truncated negative binomial model seems to work the best (lowest AIC), and i
 ## Models Including Flooding and Other Variables
 
 ```{r, echo = FALSE}
-# Full ZI Model
 mosq.cand.models <- list()
 
+
 # Temperature alone
-mosq.cand.models[[1]] <- glmmTMB(Mosquito ~ MaxTemp_Z + (1 | Date), ziformula = ~., family = truncated_nbinom2(), data = abundance.df)
+mosq.cand.models[[1]] <- glmmTMB(Mosquito ~ MaxTemp_Z + (1 | Date), ziformula = ~ drgn_presence + (1 | Date), family = truncated_nbinom2(), data = abundance.df)
 
 # Dragons alone
-mosq.cand.models[[2]] <- glmmTMB(Mosquito ~ Skimmer_Z + (1 | Date), ziformula = ~., family = truncated_nbinom2(), data = abundance.df)
+mosq.cand.models[[2]] <- glmmTMB(Mosquito ~ drgn_presence + (1 | Date), ziformula = ~ drgn_presence + (1 | Date), family = truncated_nbinom2(), data = abundance.df)
 
 # Days since last flooding alone
-mosq.cand.models[[3]] <- glmmTMB(Mosquito ~ Days_Between_Z + (1 | Date), ziformula = ~., family = truncated_nbinom2(), data = abundance.df)
+mosq.cand.models[[3]] <- glmmTMB(Mosquito ~ Days_Between_Z + (1 | Date), ziformula = ~ drgn_presence + (1 | Date), family = truncated_nbinom2(), data = abundance.df)
 
 # Temperature and dragons
-mosq.cand.models[[4]] <- glmmTMB(Mosquito ~ MaxTemp_Z * Skimmer_Z + (1 | Date), ziformula = ~., family = truncated_nbinom2(), data = abundance.df)
+mosq.cand.models[[4]] <- glmmTMB(Mosquito ~ MaxTemp_Z * drgn_presence + (1 | Date), ziformula = ~ drgn_presence + (1 | Date), family = truncated_nbinom2(), data = abundance.df)
 
 # Temperature and days since
-mosq.cand.models[[5]] <- glmmTMB(Mosquito ~ MaxTemp_Z + Days_Between_Z + (1 | Date), ziformula = ~., family = truncated_nbinom2(), data = abundance.df)
+mosq.cand.models[[5]] <- glmmTMB(Mosquito ~ MaxTemp_Z + Days_Between_Z + (1 | Date), ziformula = ~ drgn_presence + (1 | Date), family = truncated_nbinom2(), data = abundance.df)
 
 # Dragons and days since
-mosq.cand.models[[6]] <- glmmTMB(Mosquito ~ Skimmer_Z + Days_Between_Z + (1 | Date), ziformula = ~., family = truncated_nbinom2(), data = abundance.df)
+mosq.cand.models[[6]] <- glmmTMB(Mosquito ~ drgn_presence + Days_Between_Z + (1 | Date), ziformula = ~ drgn_presence + (1 | Date), family = truncated_nbinom2(), data = abundance.df)
 
 # All three
-mosq.cand.models[[7]] <- glmmTMB(Mosquito ~ MaxTemp_Z * Skimmer_Z + Days_Between_Z + (1 | Date), ziformula = ~., family = truncated_nbinom2(), data = abundance.df)
+mosq.cand.models[[7]] <- glmmTMB(Mosquito ~ MaxTemp_Z * drgn_presence + Days_Between_Z + (1 | Date), ziformula = ~ drgn_presence + (1 | Date), family = truncated_nbinom2(), data = abundance.df)
 
-
-
-# Drop Temperature from ZI
-# Temperature alone
-mosq.cand.models[[8]] <- glmmTMB(Mosquito ~ MaxTemp_Z + (1 | Date), ziformula = ~ Skimmer_Z + (1 | Date), family = truncated_nbinom2(), data = abundance.df)
-
-# Dragons alone
-mosq.cand.models[[9]] <- glmmTMB(Mosquito ~ Skimmer_Z + (1 | Date), ziformula = ~ Skimmer_Z + (1 | Date), family = truncated_nbinom2(), data = abundance.df)
-
-# Days since last flooding alone
-mosq.cand.models[[10]] <- glmmTMB(Mosquito ~ Days_Between_Z + (1 | Date), ziformula = ~ Skimmer_Z + (1 | Date), family = truncated_nbinom2(), data = abundance.df)
-
-# Temperature and dragons
-mosq.cand.models[[11]] <- glmmTMB(Mosquito ~ MaxTemp_Z * Skimmer_Z + (1 | Date), ziformula = ~ Skimmer_Z + (1 | Date), family = truncated_nbinom2(), data = abundance.df)
-
-# Temperature and days since
-mosq.cand.models[[12]] <- glmmTMB(Mosquito ~ MaxTemp_Z + Days_Between_Z + (1 | Date), ziformula = ~ Skimmer_Z + (1 | Date), family = truncated_nbinom2(), data = abundance.df)
-
-# Dragons and days since
-mosq.cand.models[[13]] <- glmmTMB(Mosquito ~ Skimmer_Z + Days_Between_Z + (1 | Date), ziformula = ~ Skimmer_Z + (1 | Date), family = truncated_nbinom2(), data = abundance.df)
-
-# All three
-mosq.cand.models[[14]] <- glmmTMB(Mosquito ~ MaxTemp_Z * Skimmer_Z + Days_Between_Z + (1 | Date), ziformula = ~ Skimmer_Z + (1 | Date), family = truncated_nbinom2(), data = abundance.df)
-
-
-
-# Drop Skimmers from ZI
-# Temperature alone
-mosq.cand.models[[15]] <- glmmTMB(Mosquito ~ MaxTemp_Z + (1 | Date), ziformula = ~ MaxTemp_Z + (1 | Date), family = truncated_nbinom2(), data = abundance.df)
-
-# Dragons alone
-mosq.cand.models[[16]] <- glmmTMB(Mosquito ~ Skimmer_Z + (1 | Date), ziformula = ~ MaxTemp_Z + (1 | Date), family = truncated_nbinom2(), data = abundance.df)
-
-# Days since last flooding alone
-mosq.cand.models[[17]] <- glmmTMB(Mosquito ~ Days_Between_Z + (1 | Date), ziformula = ~ MaxTemp_Z + (1 | Date), family = truncated_nbinom2(), data = abundance.df)
-
-# Temperature and dragons
-mosq.cand.models[[18]] <- glmmTMB(Mosquito ~ MaxTemp_Z * Skimmer_Z + (1 | Date), ziformula = ~ MaxTemp_Z + (1 | Date), family = truncated_nbinom2(), data = abundance.df)
-
-# Temperature and days since
-mosq.cand.models[[19]] <- glmmTMB(Mosquito ~ MaxTemp_Z + Days_Between_Z + (1 | Date), ziformula = ~ MaxTemp_Z + (1 | Date), family = truncated_nbinom2(), data = abundance.df)
-
-# Dragons and days since
-mosq.cand.models[[20]] <- glmmTMB(Mosquito ~ Skimmer_Z + Days_Between_Z + (1 | Date), ziformula = ~ MaxTemp_Z + (1 | Date), family = truncated_nbinom2(), data = abundance.df)
-
-# All three
-mosq.cand.models[[21]] <- glmmTMB(Mosquito ~ MaxTemp_Z * Skimmer_Z + Days_Between_Z + (1 | Date), ziformula = ~ MaxTemp_Z + (1 | Date), family = truncated_nbinom2(), data = abundance.df)
-
-
-
-# Drop Date from ZI
-# Temperature alone
-mosq.cand.models[[22]] <- glmmTMB(Mosquito ~ MaxTemp_Z + (1 | Date), ziformula = ~ Skimmer_Z * MaxTemp_Z, family = truncated_nbinom2(), data = abundance.df)
-
-# Dragons alone
-mosq.cand.models[[23]] <- glmmTMB(Mosquito ~ Skimmer_Z + (1 | Date), ziformula = ~ Skimmer_Z * MaxTemp_Z, family = truncated_nbinom2(), data = abundance.df)
-
-# Days since last flooding alone
-mosq.cand.models[[24]] <- glmmTMB(Mosquito ~ Days_Between_Z + (1 | Date), ziformula = ~ Skimmer_Z * MaxTemp_Z, family = truncated_nbinom2(), data = abundance.df)
-
-# Temperature and dragons
-mosq.cand.models[[25]] <- glmmTMB(Mosquito ~ MaxTemp_Z * Skimmer_Z + (1 | Date), ziformula = ~ Skimmer_Z * MaxTemp_Z, family = truncated_nbinom2(), data = abundance.df)
-
-# Temperature and days since
-mosq.cand.models[[26]] <- glmmTMB(Mosquito ~ MaxTemp_Z + Days_Between_Z + (1 | Date), ziformula = ~ Skimmer_Z * MaxTemp_Z, family = truncated_nbinom2(), data = abundance.df)
-
-# Dragons and days since
-mosq.cand.models[[27]] <- glmmTMB(Mosquito ~ Skimmer_Z + Days_Between_Z + (1 | Date), ziformula = ~ Skimmer_Z * MaxTemp_Z, family = truncated_nbinom2(), data = abundance.df)
-
-# All three
-mosq.cand.models[[28]] <- glmmTMB(Mosquito ~ MaxTemp_Z * Skimmer_Z + Days_Between_Z + (1 | Date), ziformula = ~ Skimmer_Z * MaxTemp_Z, family = truncated_nbinom2(), data = abundance.df)
-
-
-
-# Drop Temperature and Skimmers from ZI
-# Temperature alone
-mosq.cand.models[[29]] <- glmmTMB(Mosquito ~ MaxTemp_Z + (1 | Date), ziformula = ~ (1 | Date), family = truncated_nbinom2(), data = abundance.df)
-
-# Dragons alone
-mosq.cand.models[[30]] <- glmmTMB(Mosquito ~ Skimmer_Z + (1 | Date), ziformula = ~ (1 | Date), family = truncated_nbinom2(), data = abundance.df)
-
-# Days since last flooding alone
-mosq.cand.models[[31]] <- glmmTMB(Mosquito ~ Days_Between_Z + (1 | Date), ziformula = ~ (1 | Date), family = truncated_nbinom2(), data = abundance.df)
-
-# Temperature and dragons
-mosq.cand.models[[32]] <- glmmTMB(Mosquito ~ MaxTemp_Z * Skimmer_Z + (1 | Date), ziformula = ~ (1 | Date), family = truncated_nbinom2(), data = abundance.df)
-
-# Temperature and days since
-mosq.cand.models[[33]] <- glmmTMB(Mosquito ~ MaxTemp_Z + Days_Between_Z + (1 | Date), ziformula = ~ (1 | Date), family = truncated_nbinom2(), data = abundance.df)
-
-# Dragons and days since
-mosq.cand.models[[34]] <- glmmTMB(Mosquito ~ Skimmer_Z + Days_Between_Z + (1 | Date), ziformula = ~ (1 | Date), family = truncated_nbinom2(), data = abundance.df)
-
-# All three
-mosq.cand.models[[35]] <- glmmTMB(Mosquito ~ MaxTemp_Z * Skimmer_Z + Days_Between_Z + (1 | Date), ziformula = ~ (1 | Date), family = truncated_nbinom2(), data = abundance.df)
-
-
-
-# Drop Temperature and Date from ZI
-# Temperature alone
-mosq.cand.models[[36]] <- glmmTMB(Mosquito ~ MaxTemp_Z + (1 | Date), ziformula = ~ Skimmer_Z, family = truncated_nbinom2(), data = abundance.df)
-
-# Dragons alone
-mosq.cand.models[[37]] <- glmmTMB(Mosquito ~ Skimmer_Z + (1 | Date), ziformula = ~ Skimmer_Z, family = truncated_nbinom2(), data = abundance.df)
-
-# Days since last flooding alone
-mosq.cand.models[[38]] <- glmmTMB(Mosquito ~ Days_Between_Z + (1 | Date), ziformula = ~ Skimmer_Z, family = truncated_nbinom2(), data = abundance.df)
-
-# Temperature and dragons
-mosq.cand.models[[39]] <- glmmTMB(Mosquito ~ MaxTemp_Z * Skimmer_Z + (1 | Date), ziformula = ~ Skimmer_Z, family = truncated_nbinom2(), data = abundance.df)
-
-# Temperature and days since
-mosq.cand.models[[40]] <- glmmTMB(Mosquito ~ MaxTemp_Z + Days_Between_Z + (1 | Date), ziformula = ~ Skimmer_Z, family = truncated_nbinom2(), data = abundance.df)
-
-# Dragons and days since
-mosq.cand.models[[41]] <- glmmTMB(Mosquito ~ Skimmer_Z + Days_Between_Z + (1 | Date), ziformula = ~ Skimmer_Z, family = truncated_nbinom2(), data = abundance.df)
-
-# All three
-mosq.cand.models[[42]] <- glmmTMB(Mosquito ~ MaxTemp_Z * Skimmer_Z + Days_Between_Z + (1 | Date), ziformula = ~ Skimmer_Z, family = truncated_nbinom2(), data = abundance.df)
-
-
-
-# Drop Skimmers and Date from ZI
-# Temperature alone
-mosq.cand.models[[43]] <- glmmTMB(Mosquito ~ MaxTemp_Z + (1 | Date), ziformula = ~ MaxTemp_Z, family = truncated_nbinom2(), data = abundance.df)
-
-# Dragons alone
-mosq.cand.models[[44]] <- glmmTMB(Mosquito ~ Skimmer_Z + (1 | Date), ziformula = ~ MaxTemp_Z, family = truncated_nbinom2(), data = abundance.df)
-
-# Days since last flooding alone
-mosq.cand.models[[45]] <- glmmTMB(Mosquito ~ Days_Between_Z + (1 | Date), ziformula = ~ MaxTemp_Z, family = truncated_nbinom2(), data = abundance.df)
-
-# Temperature and dragons
-mosq.cand.models[[46]] <- glmmTMB(Mosquito ~ MaxTemp_Z * Skimmer_Z + (1 | Date), ziformula = ~ MaxTemp_Z, family = truncated_nbinom2(), data = abundance.df)
-
-# Temperature and days since
-mosq.cand.models[[47]] <- glmmTMB(Mosquito ~ MaxTemp_Z + Days_Between_Z + (1 | Date), ziformula = ~ MaxTemp_Z, family = truncated_nbinom2(), data = abundance.df)
-
-# Dragons and days since
-mosq.cand.models[[48]] <- glmmTMB(Mosquito ~ Skimmer_Z + Days_Between_Z + (1 | Date), ziformula = ~ MaxTemp_Z, family = truncated_nbinom2(), data = abundance.df)
-
-# All three
-mosq.cand.models[[49]] <- glmmTMB(Mosquito ~ MaxTemp_Z * Skimmer_Z + Days_Between_Z + (1 | Date), ziformula = ~ MaxTemp_Z, family = truncated_nbinom2(), data = abundance.df)
 ```
 
 ```{r}
-aic_table <- aictab(cand.set = mosq.cand.models[8:14], sort = TRUE)
+aic_table <- aictab(cand.set = mosq.cand.models, sort = TRUE)
 aic_table
 
-r2(mosq.cand.models[[8]])
-r2(mosq.cand.models[[9]])
-r2(mosq.cand.models[[10]])
-r2(mosq.cand.models[[11]])
-r2(mosq.cand.models[[12]])
-r2(mosq.cand.models[[13]])
-r2(mosq.cand.models[[14]])
+r2(mosq.cand.models[[1]])
+r2(mosq.cand.models[[2]])
+r2(mosq.cand.models[[3]])
+r2(mosq.cand.models[[4]])
+r2(mosq.cand.models[[5]])
+r2(mosq.cand.models[[6]])
+r2(mosq.cand.models[[7]])
 
-summary(mosq.cand.models[[11]])
-confint(mosq.cand.models[[11]])
+summary(mosq.cand.models[[4]])
+confint(mosq.cand.models[[4]])
 ```
 
 
 
 ```{r}
-temp_effect <- ggpredict(mosq.cand.models[[11]], terms = c("MaxTemp_Z [all]"), ci.lvl = 0.95, type = "fe.zi")
-temp_effect.plot <- ggplot(temp_effect, aes(x = x, y = predicted)) +
-  geom_line() +
-  geom_ribbon(aes(ymin = conf.low, ymax = conf.high), alpha = .1) +
-  geom_point(abundance.df, mapping = aes(x = MaxTemp_Z, y = Mosquito), size = 0.75) +
-  theme_classic( base_size = 11, base_line_size = 0.1 ) +
-  scale_y_continuous( expand = c(0, 0) ) +
-  scale_x_continuous( expand = c(0, 0),
-                      breaks = c((25 - mean(abundance.df$MaxTemp_Predicted_C))/sd(abundance.df$MaxTemp_Predicted_C),
-                                 (27.5 - mean(abundance.df$MaxTemp_Predicted_C))/sd(abundance.df$MaxTemp_Predicted_C),
-                                 (30 - mean(abundance.df$MaxTemp_Predicted_C))/sd(abundance.df$MaxTemp_Predicted_C),
-                                 (32.5 - mean(abundance.df$MaxTemp_Predicted_C))/sd(abundance.df$MaxTemp_Predicted_C),
-                                 (35 - mean(abundance.df$MaxTemp_Predicted_C))/sd(abundance.df$MaxTemp_Predicted_C)),
-                      labels = c(27.5, 30, 32.5, 35),
-                      limits = c((26.5 - mean(abundance.df$MaxTemp_Predicted_C))/sd(abundance.df$MaxTemp_Predicted_C),
-                                 (36.125 - mean(abundance.df$MaxTemp_Predicted_C))/sd(abundance.df$MaxTemp_Predicted_C) ) ) +
-  coord_cartesian(ylim = c(0, 500)) +
-  xlab("Max Temperature (°C)") +
-  ylab("Prey Abundance") +
-  theme( panel.border = element_rect( color = "black", fill = NA, size = 0.75 ),
-         legend.position = "none",
-         aspect.ratio = 1)
-
-
-
-pred_effect <- ggpredict(mosq.cand.models[[11]], terms = c("Skimmer_Z [all]"), ci.lvl = 0.95, type = "fe.zi")
-pred_effect.plot <- ggplot(pred_effect, aes(x, predicted)) +
-  geom_line() +
-  geom_ribbon(aes(ymin = conf.low, ymax = conf.high), alpha = .1) +
-  geom_point(abundance.df, mapping = aes(x = Skimmer_Z, y = Mosquito), size = 0.75) + 
-  theme_classic( base_size = 11, base_line_size = 0.1 ) +
-  scale_x_continuous( expand = c(0, 0), 
-                      breaks = c((0 - mean(abundance.df$Skimmer_Dragonfly))/sd(abundance.df$Skimmer_Dragonfly),
-                                                   (2 - mean(abundance.df$Skimmer_Dragonfly))/sd(abundance.df$Skimmer_Dragonfly),
-                                                   (4 - mean(abundance.df$Skimmer_Dragonfly))/sd(abundance.df$Skimmer_Dragonfly),
-                                                   (6 - mean(abundance.df$Skimmer_Dragonfly))/sd(abundance.df$Skimmer_Dragonfly),
-                                                   (8 - mean(abundance.df$Skimmer_Dragonfly))/sd(abundance.df$Skimmer_Dragonfly),
-                                                   (10 - mean(abundance.df$Skimmer_Dragonfly))/sd(abundance.df$Skimmer_Dragonfly)),
-                      labels = c(0, 2, 4, 6, 8, 10),
-                      limits = c((0 - mean(abundance.df$Skimmer_Dragonfly))/sd(abundance.df$Skimmer_Dragonfly), 
-                                 (10 - mean(abundance.df$Skimmer_Dragonfly))/sd(abundance.df$Skimmer_Dragonfly)) ) +
-  scale_y_continuous( expand = c(0, 0) ) +
-  coord_cartesian(ylim = c(0, 50)) +
-  xlab("Predator Abundance") +
-  ylab("Prey Abundance") +
-  theme( panel.border = element_rect( color = "black", fill = NA, size = 0.75 ),
-         legend.position = "none",
-         aspect.ratio = 1)
-
-
-
-
-int_effect <- ggpredict(mosq.cand.models[[11]], terms = c("MaxTemp_Z [all]", "Skimmer_Z [all]"), ci.lvl = 0.95, type = "fe.zi")
+int_effect <- ggpredict(mosq.cand.models[[4]], terms = c("MaxTemp_Z [all]", "drgn_presence"), ci.lvl = 0.95, type = "fe.zi")
 int_effect$MaxTemp <- int_effect$x * sd(abundance.df$MaxTemp_Predicted_C) + mean(abundance.df$MaxTemp_Predicted_C) 
-int_effect$Skimmer_Dragonfly <- as.numeric(as.character(int_effect$group)) * sd(abundance.df$Skimmer_Dragonfly) + mean(abundance.df$Skimmer_Dragonfly)
-int_effect$Skimmer_Dragonfly <- round(int_effect$Skimmer_Dragonfly, digits = 0)
-int_effect$Skimmer_Dragonfly <- as.factor(int_effect$Skimmer_Dragonfly)
-abundance.df$Skimmer_Dragonfly <- as.factor(abundance.df$Skimmer_Dragonfly)
+int_effect$drgn_presence <- int_effect$group
 
-int_effect.plot <- ggplot( int_effect, aes( MaxTemp, predicted, colour = Skimmer_Dragonfly ) ) +
+
+int_effect.plot <- ggplot( int_effect, aes( MaxTemp, predicted, colour = drgn_presence ) ) +
   geom_line() +
-  geom_ribbon(aes( ymin = conf.low, ymax = conf.high ), alpha = 0.25, show.legend = F, colour = NA) +
-  geom_point(abundance.df, mapping = aes(x = MaxTemp_Predicted_C, y = Mosquito ), size = 0.75) +
-  theme_classic( base_size = 11, base_line_size = 0.1 ) +
-  facet_wrap(~Skimmer_Dragonfly) +
+  geom_ribbon(aes( ymin = conf.low, ymax = conf.high, fill = drgn_presence ), alpha = 0.25, show.legend = F, colour = NA) +
+  geom_point(abundance.df, mapping = aes(x = MaxTemp_Predicted_C, y = Mosquito ), size = 1.5, alpha = 0.35 ) +
+  theme_classic( base_size = 12, base_line_size = 0.1 ) +
   scale_y_continuous( expand = c(0, 0) ) +
   scale_x_continuous( expand = c(0, 0) ) +
-  coord_cartesian(ylim = c(0, 500)) +
+  coord_cartesian(ylim = c(-1, 250), xlim = c(23.8, 36.5)) +
   xlab("Max Temperature (°C)") +
   ylab("Prey Abundance") +
+  scale_colour_discrete(name = "Predators") +
   theme( panel.border = element_rect( color = "black", fill = NA, size = 0.75 ),
-         legend.position = "none",
+         legend.position = "bottom",
          aspect.ratio = 1)
 
-ggsave("../abundance/newplot2.png", plot = int_effect.plot, units = c( "mm" ), dpi = 300, bg = "white" )
+ggsave("../abundance/newplot3.png", plot = int_effect.plot, units = c( "mm" ), dpi = 300, bg = "white" )
 ```
 
 
