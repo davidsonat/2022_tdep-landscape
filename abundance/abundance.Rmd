@@ -324,47 +324,30 @@ pred_effect.plot <- ggplot(pred_effect, aes(x, predicted)) +
 
 
 
-int_effect <- ggpredict(mosq.cand.models[[11]], terms = c("MaxTemp_Z", "Skimmer_Z"), ci.lvl = 0.95, type = "fe.zi")
+
 int_effect <- ggpredict(mosq.cand.models[[11]], terms = c("MaxTemp_Z [all]", "Skimmer_Z [all]"), ci.lvl = 0.95, type = "fe.zi")
-int_effect <- int_effect[ which(int_effect$group == '-0.36' | int_effect$group == '-0.06' | int_effect$group == '0.25'), ] # This corresponds to 0, 1, or 2 skimmers
-int_effect.obs <- abundance.df[ which(abundance.df$Skimmer_Dragonfly == '0' | abundance.df$Skimmer_Dragonfly == '1' | abundance.df$Skimmer_Dragonfly == '2'), ] # Grab the observed values
-int_effect.obs$Skimmer_Z <- round(int_effect.obs$Skimmer_Z, digits = 2) # Round off
-int_effect.obs$Skimmer_Z <- as.factor(int_effect.obs$Skimmer_Z) # Convert to factor
-int_effect.plot <- ggplot(int_effect, aes(x, predicted, colour = group)) +
+int_effect$MaxTemp <- int_effect$x * sd(abundance.df$MaxTemp_Predicted_C) + mean(abundance.df$MaxTemp_Predicted_C) 
+int_effect$Skimmer_Dragonfly <- as.numeric(as.character(int_effect$group)) * sd(abundance.df$Skimmer_Dragonfly) + mean(abundance.df$Skimmer_Dragonfly)
+int_effect$Skimmer_Dragonfly <- round(int_effect$Skimmer_Dragonfly, digits = 0)
+int_effect$Skimmer_Dragonfly <- as.factor(int_effect$Skimmer_Dragonfly)
+abundance.df$Skimmer_Dragonfly <- as.factor(abundance.df$Skimmer_Dragonfly)
+
+int_effect.plot <- ggplot( int_effect, aes( MaxTemp, predicted, colour = Skimmer_Dragonfly ) ) +
   geom_line() +
-  geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group), alpha = 0.25, show.legend = F, colour = NA) +
-  geom_point(int_effect.obs, mapping = aes(x = MaxTemp_Z, y = Mosquito, colour = Skimmer_Z), size = 0.75) +
+  geom_ribbon(aes( ymin = conf.low, ymax = conf.high ), alpha = 0.25, show.legend = F, colour = NA) +
+  geom_point(abundance.df, mapping = aes(x = MaxTemp_Predicted_C, y = Mosquito ), size = 0.75) +
   theme_classic( base_size = 11, base_line_size = 0.1 ) +
+  facet_wrap(~Skimmer_Dragonfly) +
   scale_y_continuous( expand = c(0, 0) ) +
-  scale_x_continuous( expand = c(0, 0),
-                      breaks = c((25 - mean(abundance.df$MaxTemp_Predicted_C))/sd(abundance.df$MaxTemp_Predicted_C),
-                                 (27.5 - mean(abundance.df$MaxTemp_Predicted_C))/sd(abundance.df$MaxTemp_Predicted_C),
-                                 (30 - mean(abundance.df$MaxTemp_Predicted_C))/sd(abundance.df$MaxTemp_Predicted_C),
-                                 (32.5 - mean(abundance.df$MaxTemp_Predicted_C))/sd(abundance.df$MaxTemp_Predicted_C),
-                                 (35 - mean(abundance.df$MaxTemp_Predicted_C))/sd(abundance.df$MaxTemp_Predicted_C)),
-                      labels = c(25, 27.5, 30, 32.5, 35),
-                      limits = c((26.5 - mean(abundance.df$MaxTemp_Predicted_C))/sd(abundance.df$MaxTemp_Predicted_C),
-                                 (36.125 - mean(abundance.df$MaxTemp_Predicted_C))/sd(abundance.df$MaxTemp_Predicted_C) ) ) +
+  scale_x_continuous( expand = c(0, 0) ) +
   coord_cartesian(ylim = c(0, 500)) +
-  scale_colour_discrete(name = "Predators", labels = c('0', '1', '2')) +
   xlab("Max Temperature (°C)") +
   ylab("Prey Abundance") +
   theme( panel.border = element_rect( color = "black", fill = NA, size = 0.75 ),
-         legend.position = "bottom",
+         legend.position = "none",
          aspect.ratio = 1)
 
-legend <- get_legend(int_effect.plot)
-int_effect.plot <- int_effect.plot + theme(legend.position = "none")
-
-Fig5.plot <- plot_grid(temp_effect.plot, pred_effect.plot, int_effect.plot, legend,
-                       ncol = 1, 
-                       align = c("hv"), 
-                       axis = c("l"),
-                       labels = c("a)", "b)", "c)", ""),
-                       label_x = 0.25,
-                       rel_heights = c(1,1,1,0.2))
-
-ggsave("../abundance/newplot.png", plot = Fig5.plot, units = c( "mm" ), dpi = 300, bg = "white" )
+ggsave("../abundance/newplot2.png", plot = int_effect.plot, units = c( "mm" ), dpi = 300, bg = "white" )
 ```
 
 
