@@ -1,0 +1,49 @@
+---
+title: "conceptualfig"
+author: "Andy"
+date: "2022-09-26"
+output: html_document
+---
+
+```{r}
+library( ggplot2 )
+
+## Thermal Performance Curve Functions
+
+tpc.gauss <- function( a, T0, b, c ){
+  a * exp( -0.5 * ( abs( T0 - b ) / c ) ^ 2 )
+} # b is the center of the peak, a is the height, c is the width
+
+
+# Generate some values for the plot
+# For a gaussian fit, b is the center of the peak, a is the height, and c is the width
+Temperature_1 = seq( 20, 36, by = 0.01 )
+Scenario_1 <- tpc.gauss( a = 0.85, T0 = Temperature_1, b = 28, c = 2.5 )
+Scenario_2 <- tpc.gauss( a = 0.85, T0 = Temperature_1, b = 32, c = 2.5 )
+Scenname_1 <- rep( "1", length( Scenario_1 ) )
+Scenname_2 <- rep( "2", length( Scenario_2 ) )
+theory1 <- data.frame( Temperature_1, Scenario_1, Scenname_1 )
+theory2 <- data.frame( Temperature_1, Scenario_2, Scenname_2 )
+colnames( theory1 ) <- c( "Temperature", "PredRate", "Scenario" )
+colnames( theory2 ) <- c( "Temperature", "PredRate", "Scenario" )
+theory.dat <- rbind( theory1, theory2 )
+
+# Plot it
+tpc.plot <-  ggplot( data = theory.dat, aes( x = Temperature, y = PredRate, colour = Scenario ) ) +
+  geom_line( size = 1 ) +
+  annotate("rect", xmin = 28, xmax = 32, ymin = -0.5, ymax = Inf, alpha = 0.35) +
+  scale_color_manual( "Predator", values = c( "red2", "green3" ), labels = c("1", "2") ) +
+  xlab( "Temperature (°C)" ) +
+  ylab( "Foraging Rate" ) +
+  xlim( 20, 35 ) +
+  coord_cartesian( ylim = c(0, 1.05)) +
+  theme_classic( base_size = 16, base_line_size = 1 ) + 
+  theme( axis.text = element_blank(),
+         axis.ticks = element_blank(),
+         panel.border = element_rect( color = "black", fill = NA, size = 0.75 ),
+         aspect.ratio = 1 )
+
+ggsave("../figs/theory.png", plot = tpc.plot, units = c( "mm" ), dpi = 300, bg = "white" )
+
+```
+
