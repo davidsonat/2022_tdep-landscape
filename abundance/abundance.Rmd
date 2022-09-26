@@ -17,6 +17,7 @@ library(ggeffects)
 library(AICcmodavg)
 library(performance)
 library(cowplot)
+library(ggbreak)
 ```
 
 ```{r, echo = FALSE, warnings = FALSE, message = FALSE}
@@ -85,6 +86,10 @@ The truncated negative binomial model seems to work the best (lowest AIC), and i
 ## Models Including Flooding and Other Variables
 
 ```{r, echo = FALSE}
+# This limits the analysis to temperatures below where they stopped co-occurring
+abundance.df <- abundance.df[which(abundance.df$MaxTemp_Predicted_C <35),]
+abundance.df$MaxTemp_Z <- (abundance.df$MaxTemp_Predicted_C - mean(abundance.df$MaxTemp_Predicted_C))/sd(abundance.df$MaxTemp_Predicted_C)
+
 mosq.cand.models <- list()
 
 
@@ -113,7 +118,8 @@ mosq.cand.models[[7]] <- glmmTMB(Mosquito ~ MaxTemp_Z * drgn_presence + Days_Bet
 
 ```{r}
 aic_table <- aictab(cand.set = mosq.cand.models, sort = TRUE)
-write.csv(aic_table, file = "aictab.csv")
+aic_table
+# write.csv(aic_table, file = "aictab.csv")
 
 r2(mosq.cand.models[[1]])
 r2(mosq.cand.models[[2]])
@@ -135,14 +141,14 @@ int_effect$MaxTemp <- int_effect$x * sd(abundance.df$MaxTemp_Predicted_C) + mean
 int_effect$drgn_presence <- int_effect$group
 
 
-int_effect.plot <- ggplot( int_effect, aes( MaxTemp, predicted, colour = drgn_presence ) ) +
+int_effect.plot <- ggplot( int_effect, aes( MaxTemp, predicted + 1, colour = drgn_presence ) ) +
   geom_line() +
-  geom_ribbon(aes( ymin = conf.low, ymax = conf.high, fill = drgn_presence ), alpha = 0.25, show.legend = F, colour = NA) +
-  geom_point(abundance.df, mapping = aes(x = MaxTemp_Predicted_C, y = Mosquito ), size = 1.5, alpha = 0.35 ) +
+  geom_ribbon(aes( ymin = conf.low + 1, ymax = conf.high + 1, fill = drgn_presence ), alpha = 0.25, show.legend = F, colour = NA) +
+  geom_point(abundance.df, mapping = aes(x = MaxTemp_Predicted_C, y = Mosquito + 1 ), size = 1.5, alpha = 0.35 ) +
   theme_classic( base_size = 12, base_line_size = 0.1 ) +
-  scale_y_continuous( expand = c(0, 0) ) +
+  scale_y_log10( expand = c(0, 0) ) +
   scale_x_continuous( expand = c(0, 0) ) +
-  coord_cartesian(ylim = c(-1, 250), xlim = c(23.8, 36.5)) +
+  coord_cartesian(xlim = c(23.92, 34.62)) +
   xlab("Max Temperature (°C)") +
   ylab("Prey Abundance") +
   scale_colour_discrete(name = "Predators") +
@@ -150,7 +156,7 @@ int_effect.plot <- ggplot( int_effect, aes( MaxTemp, predicted, colour = drgn_pr
          legend.position = "bottom",
          aspect.ratio = 1)
 
-ggsave("../abundance/newplot3.png", plot = int_effect.plot, units = c( "mm" ), dpi = 300, bg = "white" )
+ggsave("../abundance/newplot3log.png", plot = int_effect.plot, units = c( "mm" ), dpi = 300, bg = "white" )
 ```
 
 
