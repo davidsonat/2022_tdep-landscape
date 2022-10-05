@@ -114,6 +114,9 @@ mosq.cand.models[[6]] <- glmmTMB(Mosquito ~ drgn_presence + Days_Between_Z + (1 
 # All three
 mosq.cand.models[[7]] <- glmmTMB(Mosquito ~ MaxTemp_Z * drgn_presence + Days_Between_Z + (1 | Date), ziformula = ~ drgn_presence + (1 | Date), family = truncated_nbinom2(), data = abundance.df)
 
+# No interaction term
+mosq.cand.models[[8]] <- glmmTMB(Mosquito ~ MaxTemp_Z + drgn_presence + (1 | Date), ziformula = ~ drgn_presence + (1 | Date), family = truncated_nbinom2(), data = abundance.df)
+
 ```
 
 ```{r}
@@ -150,22 +153,13 @@ int_effect.plot <- ggplot( int_effect, aes( MaxTemp, predicted + 1, colour = drg
   scale_x_continuous( expand = c(0, 0) ) +
   coord_cartesian(xlim = c(23.92, 34.62)) +
   xlab("Max Temperature (°C)") +
-  ylab("Prey Abundance") +
+  ylab("Prey Abundance + 1") +
   scale_colour_discrete(name = "Predators") +
   theme( panel.border = element_rect( color = "black", fill = NA, size = 0.75 ),
          legend.position = "bottom",
          aspect.ratio = 1)
 
 ggsave("../abundance/newplot3log.png", plot = int_effect.plot, units = c( "mm" ), dpi = 300, bg = "white" )
-```
-
-
-```{r}
-# Humoring James
-nopred <- int_effect[which(int_effect$group == '-0.36'),]
-onepred <- int_effect[which(int_effect$group == '-0.06'),]
-predeffect <- (onepred$predicted - nopred$predicted)/nopred$predicted
-plot(x = onepred$x, y = predeffect, ylab = "Net Predator Effect", xlab = "Max Temperature (Z)")
 ```
 
 
