@@ -134,7 +134,7 @@ modelout.df <- read.csv( "../pantala/Output_PanSpp.csv" )
 
 Fig3d.plot <- ggplot( modelout.df, aes( x = temp, y = num_survive/300 ) ) +
   geom_smooth( colour = "#00BFC4", fill = "#00BFC4", alpha = 0.3 ) +
-  scale_x_continuous( expand = c( 0, 0 ), breaks = c( 20, 24, 28, 32, 36 ) ) +
+  scale_x_continuous( expand = c( 0, 0 ), limits = c(18, 38), breaks = c( 20, 24, 28, 32, 36 ) ) +
   scale_y_continuous( expand = c( 0, 0 ) ) +
   coord_cartesian( ylim = c( 0.10, 0.30 ) ) +
   theme_classic( base_size = 24, base_line_size = 1 ) +
