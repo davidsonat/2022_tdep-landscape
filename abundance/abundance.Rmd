@@ -144,20 +144,16 @@ confint(mosq.cand.models[[4]])
 # Remove zeroes from the marginal effects plot
 int_effect <- ggpredict(mosq.cand.models[[4]], terms = c("MaxTemp_Z [all]", "drgn_presence"), ci.lvl = 0.95, type = "fe.zi")
 int_effect2 <- ggpredict(mosq.cand.models[[4]], terms = c("drgn_presence"), ci.lvl = 0.95, type = "zi.prob") # Remember, these are pr(ABSENCE)
-int_effect3 <- ggpredict(mosq.cand.models[[4]], terms = c("MaxTemp_Z [all]", "drgn_presence"), ci.lvl = 0.95, type = "fe")
 int_effect$MaxTemp <- int_effect$x * sd(abundance.df$MaxTemp_Predicted_C) + mean(abundance.df$MaxTemp_Predicted_C) 
 int_effect$drgn_presence <- int_effect$group
-int_effect3$drgn_presence <- int_effect$group
-int_effect3$MaxTemp <- int_effect3$x * sd(abundance.df$MaxTemp_Predicted_C) + mean(abundance.df$MaxTemp_Predicted_C) 
+int_effect2$std.error_tf <- (int_effect2$conf.high - int_effect2$predicted)/1.96
 int_effect2$predicted <- 1 - int_effect2$predicted
-int_effect2$conf.low <- 1 - int_effect2$conf.low
-int_effect2$conf.high <- 1 - int_effect2$conf.high
 int_effect2$x <- as.factor(int_effect2$x)
 nonzero.df <- abundance.df[ which(abundance.df$Mosquito > 0), ] # Grab nonzero observations
 
 int_effect.plot1 <- ggplot(int_effect2, aes(x = x, y = predicted)) +
   geom_bar(stat = "identity", aes(fill = x)) +
-  geom_errorbar(aes(ymin = predicted - std.error, ymax = predicted + std.error), width = .2) +
+  geom_errorbar(aes(ymin = predicted - std.error_tf, ymax = predicted + std.error_tf), width = .2) +
   scale_y_continuous( expand = c(0, 0) ) +
   coord_cartesian(ylim = c(0, 1)) +
   xlab("Predators") +
@@ -166,22 +162,6 @@ int_effect.plot1 <- ggplot(int_effect2, aes(x = x, y = predicted)) +
   theme( panel.border = element_rect( color = "black", fill = NA, size = 0.75 ),
          legend.position = "none",
          aspect.ratio = 1)
-
-
-# int_effect.plot1 <- ggplot( int_effect3, aes( MaxTemp, predicted + 1, colour = drgn_presence ) ) +
-#   geom_line() +
-#   geom_ribbon(aes( ymin = conf.low + 1, ymax = conf.high + 1, fill = drgn_presence ), alpha = 0.25, show.legend = F, colour = NA) +
-#   geom_point(nonzero.df, mapping = aes(x = MaxTemp_Predicted_C, y = Mosquito + 1 ), size = 1.5, alpha = 0.35 ) +
-#   theme_classic( base_size = 12, base_line_size = 0.1 ) +
-#   scale_y_log10( expand = c(0, 0) ) +
-#   scale_x_continuous( expand = c(0, 0) ) +
-#   coord_cartesian(xlim = c(23.92, 34.62)) +
-#   xlab("Max Temperature (°C)") +
-#   ylab("Prey Abundance + 1") +
-#   scale_colour_discrete(name = "Predators") +
-#   theme( panel.border = element_rect( color = "black", fill = NA, size = 0.75 ),
-#          legend.position = "none",
-#          aspect.ratio = 1)
 
 
 int_effect.plot2 <- ggplot( int_effect, aes( MaxTemp, predicted + 1, colour = drgn_presence ) ) +
