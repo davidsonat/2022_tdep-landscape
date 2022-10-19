@@ -1,0 +1,46 @@
+---
+title: "Fig1"
+author: "Andy"
+date: "2022-10-19"
+output: html_document
+---
+
+```{r, echo = FALSE, results="hide"}
+require( ggplot2 )
+tpc.gauss <- function(a, T0, b, c){
+  a * exp((-(T0 - b)^2)/(2*c^2))
+}
+```
+
+```{r}
+# Generate some values for the plot
+# For a gaussian fit, b is the center of the peak, a is the height, and c is the width
+Temperature_1 = seq( 20, 36, by = 0.01 )
+Spp1 <- tpc.gauss( a = 10, T0 = Temperature_1, b = 30, c = 1.5 )
+Spp2 <- tpc.gauss( a = 5, T0 = Temperature_1, b = 30, c = 1.5 )
+Scenname_1 <- rep( "Species 1", length( Scenario_1 ) )
+Scenname_2 <- rep( "Species 2", length( Scenario_2 ) )
+theory1 <- data.frame( Temperature_1, Spp1, Scenname_1 )
+theory2 <- data.frame( Temperature_1, Spp2, Scenname_2 )
+colnames( theory1 ) <- c( "Temperature", "Rate", "Scenario" )
+colnames( theory2 ) <- c( "Temperature", "Rate", "Scenario" )
+theory.dat <- rbind( theory1, theory2 )
+
+# Plot it
+Fig1.plot <-  ggplot( data = theory.dat, aes( x = Temperature, y = Rate, colour = Scenario ) ) +
+  geom_line( size = 1 ) +
+  scale_color_manual( "Scenario", values = c( "red2", "green3" ) ) +
+  xlab( "Temperature (°C)" ) +
+  ylab( "Rate" ) +
+  xlim( 27.5, 31 ) +
+  theme_classic( base_size = 16, base_line_size = 1 ) + 
+  theme( legend.position = "bottom", 
+         axis.text = element_blank(),
+         legend.title = element_blank(),
+         axis.ticks = element_blank(),
+         panel.border = element_rect( color = "black", fill = NA, size = 0.75 ),
+         aspect.ratio = 1 )
+
+ggsave("Fig1.png", plot = Fig1.plot, units = c( "mm" ), dpi = 300)
+
+```

@@ -14,11 +14,11 @@ require(plyr)
 require(Hmisc)
 require(broom)
 require(ggplot2)
-source("../pantala/ModelingFunctions.R")
-frdat <- read.csv("../pantala/TDFR_Pantala-Atro_data.csv")
-devdata <- read.csv( "../figs/AeAtro_TDDevData.csv" )
-dev_confints.dat <- read.csv( "../figs/ConfInts_AeAtro_TDDev.csv" )
-mort_confints.dat <- read.csv( "../figs/ConfInts_AeAtro_TDMort.csv" )
+source("ModelingFunctions.R")
+frdat <- read.csv("TDFR_Pantala-Atro_data.csv")
+devdata <- read.csv( "AeAtro_TDDevData.csv" )
+dev_confints.dat <- read.csv( "ConfInts_AeAtro_TDDev.csv" )
+mort_confints.dat <- read.csv( "ConfInts_AeAtro_TDMort.csv" )
 
 ```
 
@@ -39,7 +39,7 @@ Fig3a.plot <- ggplot( data = devdata, aes( x = Temp, y = DevTime ) ) +
          aspect.ratio = 1 )
 
 
-ggsave("../figs/Fig3a.png", plot = Fig3a.plot, units = c( "mm" ), dpi = 300, bg = "white" )
+ggsave("Fig3a.png", plot = Fig3a.plot, units = c( "mm" ), dpi = 300, bg = "white" )
 ```
 
 ```{r}
@@ -62,12 +62,12 @@ Fig3b.plot <- ggplot( data = devdata, aes( x = Temp, y = 1 - MortalityRate ) ) +
          aspect.ratio = 1 )
 
 
-ggsave("../figs/Fig3b.png", plot = Fig3b.plot, units = c( "mm" ), dpi = 300, bg = "white" )
+ggsave("Fig3b.png", plot = Fig3b.plot, units = c( "mm" ), dpi = 300, bg = "white" )
 ```
 
 ```{r}
 ## Panel C -- Temp. dependent FR
-predparms <- read.csv( "../pantala/Parms_Pan_FR_Wide.csv" )
+predparms <- read.csv( "Parms_Pan_FR_Wide.csv" )
 
 N0_vec <- seq( 0, 125, by = 1 )
 TempK_fac <- c( 293.15, 297.15, 301.15, 305.15, 309.15 )
@@ -124,13 +124,13 @@ Fig3cLeg.plot <- get_legend(Fig3c.plot)
 Fig3c.plot <- Fig3c.plot + theme(legend.position = "none")
 
 
-ggsave("../figs/Fig3c.png", plot = Fig3c.plot, units = c( "mm" ), dpi = 300, bg = "white" )
-ggsave("../figs/Fig3cLeg.png", plot = Fig3cLeg.plot, units = c( "mm" ), dpi = 300, bg = "white" )
+ggsave("Fig3c.png", plot = Fig3c.plot, units = c( "mm" ), dpi = 300, bg = "white" )
+ggsave("Fig3cLeg.png", plot = Fig3cLeg.plot, units = c( "mm" ), dpi = 300, bg = "white" )
 ```
 
 ```{r}
 ## Panel D -- Model out
-modelout.df <- read.csv( "../pantala/Output_PanSpp.csv" )
+modelout.df <- read.csv( "Output_PanSpp.csv" )
 
 Fig3d.plot <- ggplot( modelout.df, aes( x = temp, y = num_survive/300 ) ) +
   geom_smooth( colour = "#00BFC4", fill = "#00BFC4", alpha = 0.3 ) +
@@ -145,5 +145,8 @@ Fig3d.plot <- ggplot( modelout.df, aes( x = temp, y = num_survive/300 ) ) +
   ylab( "Proportional Survival" )
 
 
-ggsave("../figs/Fig3d.png", plot = Fig3d.plot, units = c( "mm" ), dpi = 300, bg = "white" )
+# Fig3.plot <- plot_grid(Fig3a.plot, Fig3b.plot, Fig3c.plot, Fig3d.plot, ncol = 2, nrow = 2, align = c("v"), axis = c("l"), labels = c("a)", "b)", "c)", "d)"), label_x = 0.2 )
+# ggsave("Fig3.png", plot = Fig3.plot, units = c( "mm" ), dpi = 300, bg = "white" )
+
+ggsave("Fig3d.png", plot = Fig3d.plot, units = c( "mm" ), dpi = 300, bg = "white" )
 ```
