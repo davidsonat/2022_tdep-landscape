@@ -142,7 +142,7 @@ Fig3d.plot <- ggplot( modelout.df, aes( x = temp, y = num_survive/300 ) ) +
          legend.position = "bottom",
          aspect.ratio = 1) + 
   xlab( "Temperature (°C)" ) +
-  ylab( "Proportional Survival" )
+  ylab( "Predicted Prop. Survival" )
 
 
 # Fig3.plot <- plot_grid(Fig3a.plot, Fig3b.plot, Fig3c.plot, Fig3d.plot, ncol = 2, nrow = 2, align = c("v"), axis = c("l"), labels = c("a)", "b)", "c)", "d)"), label_x = 0.2 )
