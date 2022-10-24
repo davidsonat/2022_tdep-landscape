@@ -208,6 +208,25 @@ ggsave("../abundance/Fig4.png", plot = Fig4.plot, units = c( "mm" ), dpi = 300, 
 ```
 
 
+```{r}
+## Landscape Level Predictions
+# We'll do some predictions where T = current predicted, and T = current + 2.5
+ambient.df <- predict(mosq.cand.models[[4]], newdata = abundance.df, type = "response", allow.new.levels = TRUE, se.fit = TRUE)
+sum(ambient.df$fit) # mean estimate = 8593.3
+sum(ambient.df$fit - ambient.df$se.fit) # low end = 4136.3
+sum(ambient.df$fit + ambient.df$se.fit) # high end = 13050.3
+
+abundance2.df$MaxTemp_Z <- abundance.df$MaxTemp_Z + (2.5)/sd(abundance.df$MaxTemp_Predicted_C)
+warmed.df <- predict(mosq.cand.models[[4]], newdata = abundance2.df, type = "response", allow.new.levels = TRUE, se.fit = TRUE)
+sum(warmed.df$fit) # mean estimate = 15466.23
+sum(warmed.df$fit - warmed.df$se.fit) # low end = 6212.8
+sum(warmed.df$fit + warmed.df$se.fit) # high end = 24679.7
+
+
+# So, between 1.5 to 1.9x more mosquito production at T + 2.5C
+```
+
+
 # Models of Dragonfly Abundance
 
 ```{r, echo = FALSE}
