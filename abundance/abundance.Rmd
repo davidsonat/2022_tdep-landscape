@@ -180,23 +180,23 @@ int_effect.plot2 <- ggplot( int_effect, aes( MaxTemp, predicted + 1, colour = dr
          aspect.ratio = 1)
 
 
-# int_effect3 <- ggpredict(mosq.cand.models[[4]], terms = c("MaxTemp_Z [all]", "drgn_presence"), ci.lvl = 0.95, type = "fe")
-# int_effect3$MaxTemp <- int_effect3$x * sd(abundance.df$MaxTemp_Predicted_C) + mean(abundance.df$MaxTemp_Predicted_C) 
-# int_effect3$drgn_presence <- int_effect3$group
-# int_effect.plot3 <- ggplot( int_effect3, aes( MaxTemp, predicted + 1, colour = drgn_presence ) ) +
-#   geom_line() +
-#   geom_ribbon(aes( ymin = conf.low + 1, ymax = conf.high + 1, fill = drgn_presence ), alpha = 0.25, show.legend = F, colour = NA) +
-#   geom_point(abundance.df, mapping = aes(x = MaxTemp_Predicted_C, y = Mosquito + 1 ), size = 1.5, alpha = 0.35 ) +
-#   theme_classic( base_size = 12, base_line_size = 0.1 ) +
-#   scale_y_log10( expand = c(0, 0) ) +
-#   scale_x_continuous( expand = c(0, 0) ) +
-#   coord_cartesian(xlim = c(23.92, 34.62)) +
-#   xlab("Max Temperature (°C)") +
-#   ylab("Prey Abundance + 1") +
-#   scale_colour_discrete(name = "Predators") +
-#   theme( panel.border = element_rect( color = "black", fill = NA, size = 0.75 ),
-#          legend.position = "bottom",
-#          aspect.ratio = 1)
+int_effect_pres <- int_effect[which(int_effect$drgn_presence == "Present"), ]
+int_effect_abs <- int_effect[which(int_effect$drgn_presence == "Absent"), ]
+int_effect_pres$effect <- (int_effect_pres$predicted - int_effect_abs$predicted)/int_effect_abs$predicted
+
+int_effect.plot3 <- ggplot( int_effect_pres, aes( x = MaxTemp, y = effect ) ) +
+  geom_line() +
+  # geom_ribbon(aes( ymin = conf.low + 1, ymax = conf.high + 1, fill = drgn_presence ), alpha = 0.25, show.legend = F, colour = NA) +
+  # geom_point(abundance.df, mapping = aes(x = MaxTemp_Predicted_C, y = Mosquito + 1 ), size = 1.5, alpha = 0.35 ) +
+  theme_classic( base_size = 12, base_line_size = 0.1 ) +
+  scale_x_continuous( expand = c(0, 0) ) +
+  coord_cartesian(xlim = c(23.92, 34.62)) +
+  xlab("Max Temperature (°C)") +
+  ylab("Prop. Diff. in Abundance") +
+  scale_colour_discrete(name = "Predators") +
+  theme( panel.border = element_rect( color = "black", fill = NA, size = 0.75 ),
+         legend.position = "bottom",
+         aspect.ratio = 1)
 
 legend.plot <- get_legend(int_effect.plot2)
 int_effect.plot2 <- int_effect.plot2 + theme( legend.position = "none" )
@@ -204,7 +204,7 @@ int_effect.plot2 <- int_effect.plot2 + theme( legend.position = "none" )
 Fig4.plot <- plot_grid(int_effect.plot1, int_effect.plot2, legend.plot, ncol = 1, align = c("v"), axis = c("l"), labels = c("a)", "b)", ""), label_x = 0.2, rel_heights = c(1,1,0.15) )
 
 
-ggsave("../abundance/Fig4.png", plot = Fig4.plot, units = c( "mm" ), dpi = 300, bg = "white" )
+# ggsave("../abundance/Fig4.png", plot = Fig4.plot, units = c( "mm" ), dpi = 300, bg = "white" )
 ```
 
 
