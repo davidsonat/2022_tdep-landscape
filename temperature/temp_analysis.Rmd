@@ -81,7 +81,7 @@ cv.hist <- ggplot(temp.df, aes(x = temp_range)) +
   geom_histogram(binwidth = 2, colour = "black", fill = "grey80") +  
   theme_classic( base_size = 12, base_line_size = 1 ) + 
   scale_y_continuous( expand = c(0, 0) ) +
-  xlab("Coefficient of Variation") +
+  xlab("CV of Temperature") +
   ylab("Frequency") +
   theme( panel.border = element_rect( color = "black", fill = NA, size = 0.75 ),
          legend.position = "none",
@@ -89,12 +89,12 @@ cv.hist <- ggplot(temp.df, aes(x = temp_range)) +
 
 Fig2.plot <- plot_grid( max.hist, min.hist, cv.hist,
                         labels = c("a)", "b)", "c)"),
-                        label_x = 0.34,
+                        label_x = 0.32,
                         nrow = 3,
                         align = "hv" )
 
 
-# ggsave( "../figs/Fig2.png",
+# ggsave( "../figs/Fig2_panels.png",
 #         plot = Fig2.plot,
 #         units = c("mm"),
 #         dpi = 300 )

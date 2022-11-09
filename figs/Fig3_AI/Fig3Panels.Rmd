@@ -124,29 +124,92 @@ Fig3cLeg.plot <- get_legend(Fig3c.plot)
 Fig3c.plot <- Fig3c.plot + theme(legend.position = "none")
 
 
-ggsave("Fig3c.png", plot = Fig3c.plot, units = c( "mm" ), dpi = 300, bg = "white" )
-ggsave("Fig3cLeg.png", plot = Fig3cLeg.plot, units = c( "mm" ), dpi = 300, bg = "white" )
+# ggsave("Fig3c.png", plot = Fig3c.plot, units = c( "mm" ), dpi = 300, bg = "white" )
+# ggsave("Fig3cLeg.png", plot = Fig3cLeg.plot, units = c( "mm" ), dpi = 300, bg = "white" )
 ```
 
 ```{r}
-## Panel D -- Model out
-modelout.df <- read.csv( "Output_PanSpp.csv" )
+## Panel D --DDep FR
 
-Fig3d.plot <- ggplot( modelout.df, aes( x = temp, y = num_survive/300 ) ) +
-  geom_smooth( colour = "#00BFC4", fill = "#00BFC4", alpha = 0.3 ) +
-  scale_x_continuous( expand = c( 0, 0 ), limits = c(18, 38), breaks = c( 20, 24, 28, 32, 36 ) ) +
-  scale_y_continuous( expand = c( 0, 0 ) ) +
-  coord_cartesian( ylim = c( 0.10, 0.30 ) ) +
-  theme_classic( base_size = 24, base_line_size = 1 ) +
-  theme( panel.border = element_rect( color = "black", fill = NA, size = 0.75 ),
-         legend.position = "bottom",
-         aspect.ratio = 1) + 
+## Generate functional response for t-dep panels
+
+N0_fac <- c( 20, 40, 60, 80, 120 )
+TempK_vec <- seq( 291.15, 311.15, by = 0.1 )
+tdepfr_out.dat <- mat.or.vec( length( TempK_vec ) * length( N0_fac ), 4)
+colnames( tdepfr_out.dat ) <- c( "Pred", "Temp", "N0", "Killed" )
+row <- 0
+
+for ( i in 1:length( N0_fac ) ){
+  for (j in 1:length( TempK_vec ) ){
+row <- row + 1
+tdepfr_out.dat[ row, "Pred" ] <- predparms[ 1, 1 ]
+tdepfr_out.dat[ row,"Temp" ] <- TempK_vec[ j ] - 273.15
+tdepfr_out.dat[ row, "N0" ] <- N0_fac[ i ]
+tdepfr_out.dat[ row, "Killed" ] = rogers.sentis( N0 = N0_fac[ i ], 
+               b = exp( predparms[ 1, 2 ] ), 
+               T0 = predparms[ 1, 6 ], 
+               Tl = predparms[ 1, 7 ], 
+               h0 = exp( predparms[ 1, 3 ] ), 
+               Eh = exp( predparms[ 1, 4 ] ), 
+               M = predparms[ 1, 5 ], 
+               bh = 0.75, 
+               k = 8.617e-5, 
+               TempK = TempK_vec[ j ], 
+               t = 1 )
+  }
+}
+
+tdepfr_out.dat <- as.data.frame( tdepfr_out.dat )
+tdepfr_out.dat$N0 <- as.factor( tdepfr_out.dat$N0 )
+tdepfr_out.dat$Pred <- as.factor( tdepfr_out.dat$Pred )
+frdat$N0 <- as.numeric( as.character( frdat$N0 ) )
+frdat$Temp <- as.factor( frdat$Temp )
+
+
+
+frdat$Temp <- as.numeric( as.character( frdat$Temp ) )
+frdat$N0 <- as.factor( frdat$N0 )
+tdepfr_out.dat$Temp <- as.numeric(tdepfr_out.dat$Temp)
+tdepfr_out.dat$Killed <- as.numeric(tdepfr_out.dat$Killed)
+
+tdep.plot <- ggplot( data.frame( Temp = c( 18, 38 ) ), aes( Temp ) ) +
+  geom_point( data = frdat, 
+              aes( x = Temp, y = Killed, colour = N0, shape = N0 ) ) +
+  geom_line( data = tdepfr_out.dat, aes( x = Temp , y = Killed, colour = N0, linetype = N0 ) ) +
+  ylab( "Prey Killed" ) +
   xlab( "Temperature (°C)" ) +
-  ylab( "Predicted Prop. Survival" )
+  scale_y_continuous( expand = c( 0, 0 ), limits = c( 0, 65 ) ) +
+  scale_x_continuous( limits = c( 18, 38 ), breaks = c( 20, 24, 28, 32, 36 ) ) +
+  scale_color_manual( "Density", values = c( "black", "black", "black", "black", "black" ), labels = c( "20", "40", "60", "80", "120" ) ) +
+  scale_linetype_manual( "Density", values = c( "solid", "longdash", "twodash", "dashed", "dotdash" ), labels = c( "20", "40", "60", "80", "120" ) ) +
+  scale_shape_manual( "Density", values = c( 16, 15, 17, 18, 1 ), labels = c( "20", "40", "60", "80", "120" ) ) +
+  theme_classic( base_size = 24, base_line_size = 1 ) + 
+  theme( panel.border = element_rect( color = "black", fill = NA, size = 0.75 ),
+         aspect.ratio = 1 )
+
+Fig3dLeg.plot <- get_legend(tdep.plot)
+tdep.plot <- tdep.plot + theme(legend.position = "none")
+
+
+# Old Panel D -- model out
+# modelout.df <- read.csv( "Output_PanSpp.csv" )
+# 
+# Fig3d.plot <- ggplot( modelout.df, aes( x = temp, y = num_survive/300 ) ) +
+#   geom_smooth( colour = "#00BFC4", fill = "#00BFC4", alpha = 0.3 ) +
+#   scale_x_continuous( expand = c( 0, 0 ), limits = c(18, 38), breaks = c( 20, 24, 28, 32, 36 ) ) +
+#   scale_y_continuous( expand = c( 0, 0 ) ) +
+#   coord_cartesian( ylim = c( 0.10, 0.30 ) ) +
+#   theme_classic( base_size = 24, base_line_size = 1 ) +
+#   theme( panel.border = element_rect( color = "black", fill = NA, size = 0.75 ),
+#          legend.position = "bottom",
+#          aspect.ratio = 1) + 
+#   xlab( "Temperature (°C)" ) +
+#   ylab( "Predicted Prop. Survival" )
 
 
 # Fig3.plot <- plot_grid(Fig3a.plot, Fig3b.plot, Fig3c.plot, Fig3d.plot, ncol = 2, nrow = 2, align = c("v"), axis = c("l"), labels = c("a)", "b)", "c)", "d)"), label_x = 0.2 )
 # ggsave("Fig3.png", plot = Fig3.plot, units = c( "mm" ), dpi = 300, bg = "white" )
 
-ggsave("Fig3d.png", plot = Fig3d.plot, units = c( "mm" ), dpi = 300, bg = "white" )
+ggsave("Fig3d_new.png", plot = tdep.plot, units = c( "mm" ), dpi = 300, bg = "white" )
+ggsave("Fig3d_legend.png", plot = Fig3dLeg.plot, units = c( "mm" ), dpi = 300, bg = "white" )
 ```
