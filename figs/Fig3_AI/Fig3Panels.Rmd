@@ -14,6 +14,8 @@ require(plyr)
 require(Hmisc)
 require(broom)
 require(ggplot2)
+require(viridis)
+require(cowplot)
 source("ModelingFunctions.R")
 frdat <- read.csv("TDFR_Pantala-Atro_data.csv")
 devdata <- read.csv( "AeAtro_TDDevData.csv" )
@@ -26,7 +28,7 @@ mort_confints.dat <- read.csv( "ConfInts_AeAtro_TDMort.csv" )
 ```{r}
 ## Panel A -- Temp. dependent development
 Fig3a.plot <- ggplot( data = devdata, aes( x = Temp, y = DevTime ) ) +
-  geom_point( size = 2 ) +
+  geom_point( size = 3 ) +
   stat_function( fun = arr.time, 
                  args = list( c_dev = 0.41171, b_dev = -34.52544 ) ) +
   geom_ribbon( aes( x = Temp, y = mean, ymin = lcl, ymax = ucl ), data = dev_confints.dat, alpha = 0.3 ) +
@@ -45,14 +47,14 @@ ggsave("Fig3a.png", plot = Fig3a.plot, units = c( "mm" ), dpi = 300, bg = "white
 ```{r}
 ## Panel B -- Temp. dependent mortality
 Fig3b.plot <- ggplot( data = devdata, aes( x = Temp, y = 1 - MortalityRate ) ) +
-  geom_point( size = 2, colour = "#F8766D") +
+  geom_point( size = 3, colour = "#FFC107") +
   stat_function( fun = logisticfun,
-                 args = list( x1 = 37.77558593, y1 = 0.015932967, r_mort = 1.289955323),
+                 args = list( x1 = 37.77558593, y1 = -0.015932967, r_mort = -1.289955323),
                  linetype = "solid",
-                 colour = "#F8766D",
+                 colour = "#FFC107",
                  size = 1 ) +  
   xlab( "Temperature (°C)" ) +
-  geom_ribbon( aes( x = Temp, y = 1 - mean, ymin = 1 - lcl, ymax = 1 - ucl ), data = mort_confints.dat, alpha = 0.3, fill = "#F8766D") +
+  geom_ribbon( aes( x = Temp, y = 1 - mean, ymin = 1 - lcl, ymax = 1 - ucl ), data = mort_confints.dat, alpha = 0.3, fill = "#FFC107") +
   ylab( "Proportional Survival" ) +
   scale_x_continuous( breaks = c( 20, 24, 28, 32, 36 ) ) +
   scale_y_continuous( expand = c(0, 0), breaks = c(0.80, 0.85, 0.90, 0.95, 1.00) ) +
@@ -108,13 +110,13 @@ frdat$Temp <- as.factor( frdat$Temp )
 
 Fig3c.plot <- ggplot( data.frame( N0 = c( 0, 120 ) ), aes( N0 ) ) +
   geom_point( data = frdat, 
-              aes( x = N0, y= Killed, colour = Temp ), size = 2 ) +
-  geom_line( data = ddepfr_out.dat, aes( x = N0, y = Killed, colour = Temp ) ) +
+              aes( x = N0, y= Killed, colour = Temp ), size = 3 ) +
+  geom_line( data = ddepfr_out.dat, aes( x = N0, y = Killed, colour = Temp ), size = 1 ) +
   ylab( "Prey Killed" ) +
   xlab( "Prey Density" ) +
   scale_y_continuous( expand = c( 0, 0 ), limits = c( 0, 65 ) ) +
   scale_x_continuous( expand = c( 0, 0 ), limits = c( 0, 125 ), breaks = c(0, 20, 40, 60, 80, 100, 120) ) +
-  scale_color_manual( "Temp (°C)", values = c( "blue", "green3", "yellow2", "orange2", "red2" ) ) +
+  scale_color_viridis( "Temp (°C)", discrete = TRUE, option = "plasma" ) +
   theme_classic( base_size = 24, base_line_size = 1 ) + 
   theme( panel.border = element_rect( color = "black", fill = NA, size = 0.75 ),
          legend.position = "right",
@@ -124,8 +126,8 @@ Fig3cLeg.plot <- get_legend(Fig3c.plot)
 Fig3c.plot <- Fig3c.plot + theme(legend.position = "none")
 
 
-# ggsave("Fig3c.png", plot = Fig3c.plot, units = c( "mm" ), dpi = 300, bg = "white" )
-# ggsave("Fig3cLeg.png", plot = Fig3cLeg.plot, units = c( "mm" ), dpi = 300, bg = "white" )
+ggsave("Fig3c.png", plot = Fig3c.plot, units = c( "mm" ), dpi = 300, bg = "white" )
+ggsave("Fig3cLeg.png", plot = Fig3cLeg.plot, units = c( "mm" ), dpi = 300, bg = "white" )
 ```
 
 ```{r}
@@ -174,15 +176,13 @@ tdepfr_out.dat$Killed <- as.numeric(tdepfr_out.dat$Killed)
 
 tdep.plot <- ggplot( data.frame( Temp = c( 18, 38 ) ), aes( Temp ) ) +
   geom_point( data = frdat, 
-              aes( x = Temp, y = Killed, colour = N0, shape = N0 ) ) +
-  geom_line( data = tdepfr_out.dat, aes( x = Temp , y = Killed, colour = N0, linetype = N0 ) ) +
+              aes( x = Temp, y = Killed, colour = N0 ), size = 3 ) +
+  geom_line( data = tdepfr_out.dat, aes( x = Temp , y = Killed, colour = N0 ), size = 1 ) +
   ylab( "Prey Killed" ) +
   xlab( "Temperature (°C)" ) +
   scale_y_continuous( expand = c( 0, 0 ), limits = c( 0, 65 ) ) +
   scale_x_continuous( limits = c( 18, 38 ), breaks = c( 20, 24, 28, 32, 36 ) ) +
-  scale_color_manual( "Density", values = c( "black", "black", "black", "black", "black" ), labels = c( "20", "40", "60", "80", "120" ) ) +
-  scale_linetype_manual( "Density", values = c( "solid", "longdash", "twodash", "dashed", "dotdash" ), labels = c( "20", "40", "60", "80", "120" ) ) +
-  scale_shape_manual( "Density", values = c( 16, 15, 17, 18, 1 ), labels = c( "20", "40", "60", "80", "120" ) ) +
+  scale_color_viridis( "Density", discrete = TRUE ) +
   theme_classic( base_size = 24, base_line_size = 1 ) + 
   theme( panel.border = element_rect( color = "black", fill = NA, size = 0.75 ),
          aspect.ratio = 1 )
@@ -195,14 +195,14 @@ tdep.plot <- tdep.plot + theme(legend.position = "none")
 # modelout.df <- read.csv( "Output_PanSpp.csv" )
 # 
 # Fig3d.plot <- ggplot( modelout.df, aes( x = temp, y = num_survive/300 ) ) +
-#   geom_smooth( colour = "#00BFC4", fill = "#00BFC4", alpha = 0.3 ) +
+#   geom_smooth( colour = "#1E88E5", fill = "#1E88E5", alpha = 0.3, size = 1 ) +
 #   scale_x_continuous( expand = c( 0, 0 ), limits = c(18, 38), breaks = c( 20, 24, 28, 32, 36 ) ) +
 #   scale_y_continuous( expand = c( 0, 0 ) ) +
 #   coord_cartesian( ylim = c( 0.10, 0.30 ) ) +
 #   theme_classic( base_size = 24, base_line_size = 1 ) +
 #   theme( panel.border = element_rect( color = "black", fill = NA, size = 0.75 ),
 #          legend.position = "bottom",
-#          aspect.ratio = 1) + 
+#          aspect.ratio = 1) +
 #   xlab( "Temperature (°C)" ) +
 #   ylab( "Predicted Prop. Survival" )
 
@@ -210,6 +210,7 @@ tdep.plot <- tdep.plot + theme(legend.position = "none")
 # Fig3.plot <- plot_grid(Fig3a.plot, Fig3b.plot, Fig3c.plot, Fig3d.plot, ncol = 2, nrow = 2, align = c("v"), axis = c("l"), labels = c("a)", "b)", "c)", "d)"), label_x = 0.2 )
 # ggsave("Fig3.png", plot = Fig3.plot, units = c( "mm" ), dpi = 300, bg = "white" )
 
-ggsave("Fig3d_new.png", plot = tdep.plot, units = c( "mm" ), dpi = 300, bg = "white" )
-ggsave("Fig3d_legend.png", plot = Fig3dLeg.plot, units = c( "mm" ), dpi = 300, bg = "white" )
+# ggsave("Fig3d_new.png", plot = tdep.plot, units = c( "mm" ), dpi = 300, bg = "white" )
+# ggsave("Fig3d_legend.png", plot = Fig3dLeg.plot, units = c( "mm" ), dpi = 300, bg = "white" )
+# ggsave("Fig4.png", plot = Fig3d.plot, units = c( "mm" ), dpi = 300, bg = "white" )
 ```
