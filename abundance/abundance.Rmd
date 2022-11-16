@@ -190,7 +190,7 @@ int_effect.plot3 <- ggplot( int_effect_pres, aes( x = MaxTemp, y = effect ) ) +
   scale_x_continuous( expand = c(0, 0) ) +
   coord_cartesian(xlim = c(23.92, 34.62)) +
   xlab("Max Temperature (°C)") +
-  ylab("Prop. Diff. in Abundance") +
+  ylab("Pred. x Temp. Effect") +
   scale_colour_discrete(name = "Predators") +
   theme( panel.border = element_rect( color = "black", fill = NA, size = 0.75 ),
          legend.position = "bottom",
@@ -199,11 +199,11 @@ int_effect.plot3 <- ggplot( int_effect_pres, aes( x = MaxTemp, y = effect ) ) +
 legend.plot <- get_legend(int_effect.plot2)
 int_effect.plot2 <- int_effect.plot2 + theme( legend.position = "none" )
 
-Fig4.plot <- plot_grid(int_effect.plot1, int_effect.plot2, int_effect.plot3, ncol = 1, align = c("v"), axis = c("l"), labels = c("a)", "b)", "c)" ), label_x = 0.275 )
+Fig6.plot <- plot_grid(int_effect.plot1, int_effect.plot2, int_effect.plot3, ncol = 1, align = c("v"), axis = c("l"), labels = c("a)", "b)", "c)" ), label_x = 0.275 )
 
 
-ggsave("../abundance/Fig4.png", plot = Fig4.plot, units = c( "mm" ), dpi = 300, bg = "white" )
-ggsave("../abundance/legend.png", plot = legend.plot, units = c( "mm" ), dpi = 300, bg = "white" )
+ggsave("../abundance/Fig6.png", plot = Fig6.plot, units = c( "mm" ), dpi = 300, bg = "white" )
+ggsave("../abundance/Fig6_legend.png", plot = legend.plot, units = c( "mm" ), dpi = 300, bg = "white" )
 ```
 
 

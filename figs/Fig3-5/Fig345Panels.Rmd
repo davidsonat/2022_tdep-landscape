@@ -1,0 +1,244 @@
+---
+title: "UpdatedFig3"
+author: "Andy"
+date: "2022-10-12"
+output: pdf_document
+---
+
+```{r}
+require(emdbook)
+require(bbmle)
+require(R2WinBUGS)
+require(plotrix)
+require(plyr)
+require(Hmisc)
+require(broom)
+require(ggplot2)
+require(viridis)
+require(cowplot)
+source("ModelingFunctions.R")
+frdat <- read.csv("TDFR_Pantala-Atro_data.csv")
+devdata <- read.csv( "AeAtro_TDDevData.csv" )
+dev_confints.dat <- read.csv( "ConfInts_AeAtro_TDDev.csv" )
+mort_confints.dat <- read.csv( "ConfInts_AeAtro_TDMort.csv" )
+
+```
+
+
+```{r}
+## Panel A -- Temp. dependent development
+Fig3a.plot <- ggplot( data = devdata, aes( x = Temp, y = DevTime ) ) +
+  geom_point( size = 3 ) +
+  stat_function( fun = arr.time, 
+                 args = list( c_dev = 0.41171, b_dev = -34.52544 ) ) +
+  geom_ribbon( aes( x = Temp, y = mean, ymin = lcl, ymax = ucl ), data = dev_confints.dat, alpha = 0.3 ) +
+  xlab( "Temperature (°C)" ) +
+  ylab( "Development Time (days)" ) +
+  scale_x_continuous( limits = c( 18, 38 ), 
+                      breaks = c( 20, 24, 28, 32, 36 ) ) +
+  theme_classic( base_size = 24, base_line_size = 1 ) + 
+  theme( panel.border = element_rect( color = "black", fill = NA, size = 0.75 ),
+         aspect.ratio = 1 )
+
+
+# ggsave("Fig3a.png", plot = Fig3a.plot, units = c( "mm" ), dpi = 300, bg = "white" )
+```
+
+```{r}
+## Panel B -- Temp. dependent mortality
+Fig3b.plot <- ggplot( data = devdata, aes( x = Temp, y = 1 - MortalityRate ) ) +
+  geom_point( size = 3, colour = "#FFC107") +
+  stat_function( fun = logisticfun,
+                 args = list( x1 = 37.77558593, y1 = -0.015932967, r_mort = -1.289955323),
+                 linetype = "solid",
+                 colour = "#FFC107",
+                 size = 1 ) +  
+  xlab( "Temperature (°C)" ) +
+  geom_ribbon( aes( x = Temp, y = 1 - mean, ymin = 1 - lcl, ymax = 1 - ucl ), data = mort_confints.dat, alpha = 0.3, fill = "#FFC107") +
+  ylab( "Proportional Survival" ) +
+  scale_x_continuous( breaks = c( 20, 24, 28, 32, 36 ) ) +
+  scale_y_continuous( expand = c(0, 0), breaks = c(0.80, 0.85, 0.90, 0.95, 1.00) ) +
+  coord_cartesian( xlim = c( 19, 37), ylim = c(0.8, 1.01) ) +
+  theme_classic( base_size = 24, base_line_size = 1 ) + 
+  theme( panel.border = element_rect( color = "black", fill = NA, size = 0.75 ),
+         aspect.ratio = 1 )
+
+
+# ggsave("Fig3b.png", plot = Fig3b.plot, units = c( "mm" ), dpi = 300, bg = "white" )
+```
+
+```{r}
+## Panel C -- Temp. dependent FR
+predparms <- read.csv( "Parms_Pan_FR_Wide.csv" )
+
+N0_vec <- seq( 0, 125, by = 1 )
+TempK_fac <- c( 293.15, 297.15, 301.15, 305.15, 309.15 )
+ddepfr_out.dat <- mat.or.vec( nrow( predparms ) * length( TempK_fac ) * length ( N0_vec ), 4)
+colnames( ddepfr_out.dat ) <- c( "Pred", "Temp", "N0", "Killed" )
+row <- 0
+
+for(h in 1:nrow( predparms ) ){
+  for ( i in 1:length( N0_vec ) ){
+    for (j in 1:length( TempK_fac ) ){
+      row <- row + 1
+      ddepfr_out.dat[ row, "Pred" ] <- predparms[ h, 1 ]
+      ddepfr_out.dat[ row,"Temp" ] <- TempK_fac[ j ] - 273.15
+      ddepfr_out.dat[ row, "N0" ] <- N0_vec[ i ]
+      ddepfr_out.dat[ row, "Killed" ] = rogers.sentis( N0 = N0_vec[ i ], 
+                                                       b = exp( predparms[ h, 2 ] ), 
+                                                       T0 = predparms[ h, 6 ], 
+                                                       Tl = predparms[ h, 7 ], 
+                                                       h0 = exp( predparms[ h, 3 ] ), 
+                                                       Eh = exp( predparms[ h, 4 ] ), 
+                                                       M = predparms[ h, 5 ], 
+                                                       bh = 0.75, 
+                                                       k = 8.617e-5, 
+                                                       TempK = TempK_fac[ j ], 
+                                                       t = 1 )
+    }
+  }
+}
+
+ddepfr_out.dat <- as.data.frame( ddepfr_out.dat )
+ddepfr_out.dat$Pred <- as.factor(ddepfr_out.dat$Pred)
+ddepfr_out.dat$Temp <- as.factor(ddepfr_out.dat$Temp)
+ddepfr_out.dat$N0 <- as.numeric(ddepfr_out.dat$N0)
+ddepfr_out.dat$Killed <- as.numeric(ddepfr_out.dat$Killed)
+
+
+frdat$Temp <- as.factor( frdat$Temp )
+
+Fig3c.plot <- ggplot( data.frame( N0 = c( 0, 120 ) ), aes( N0 ) ) +
+  geom_point( data = frdat, 
+              aes( x = N0, y= Killed, colour = Temp ), size = 3 ) +
+  geom_line( data = ddepfr_out.dat, aes( x = N0, y = Killed, colour = Temp ), size = 1 ) +
+  ylab( "Prey Killed" ) +
+  xlab( "Prey Density" ) +
+  scale_y_continuous( expand = c( 0, 0 ), limits = c( 0, 65 ) ) +
+  scale_x_continuous( expand = c( 0, 0 ), limits = c( 0, 125 ), breaks = c(0, 20, 40, 60, 80, 100, 120) ) +
+  scale_color_viridis( "Temp (°C)", discrete = TRUE, option = "plasma" ) +
+  theme_classic( base_size = 24, base_line_size = 1 ) + 
+  theme( panel.border = element_rect( color = "black", fill = NA, size = 0.75 ),
+         legend.position = "right",
+         aspect.ratio = 1 )
+
+Fig3cLeg.plot <- get_legend(Fig3c.plot)
+Fig3c.plot <- Fig3c.plot + theme(legend.position = "none")
+
+
+# ggsave("Fig3c.png", plot = Fig3c.plot, units = c( "mm" ), dpi = 300, bg = "white" )
+# ggsave("Fig3cLeg.png", plot = Fig3cLeg.plot, units = c( "mm" ), dpi = 300, bg = "white" )
+```
+
+```{r}
+## Panel D --DDep FR
+
+## Generate functional response for t-dep panels
+
+N0_fac <- c( 20, 40, 60, 80, 120 )
+TempK_vec <- seq( 291.15, 311.15, by = 0.1 )
+tdepfr_out.dat <- mat.or.vec( length( TempK_vec ) * length( N0_fac ), 4)
+colnames( tdepfr_out.dat ) <- c( "Pred", "Temp", "N0", "Killed" )
+row <- 0
+
+for ( i in 1:length( N0_fac ) ){
+  for (j in 1:length( TempK_vec ) ){
+row <- row + 1
+tdepfr_out.dat[ row, "Pred" ] <- predparms[ 1, 1 ]
+tdepfr_out.dat[ row,"Temp" ] <- TempK_vec[ j ] - 273.15
+tdepfr_out.dat[ row, "N0" ] <- N0_fac[ i ]
+tdepfr_out.dat[ row, "Killed" ] = rogers.sentis( N0 = N0_fac[ i ], 
+               b = exp( predparms[ 1, 2 ] ), 
+               T0 = predparms[ 1, 6 ], 
+               Tl = predparms[ 1, 7 ], 
+               h0 = exp( predparms[ 1, 3 ] ), 
+               Eh = exp( predparms[ 1, 4 ] ), 
+               M = predparms[ 1, 5 ], 
+               bh = 0.75, 
+               k = 8.617e-5, 
+               TempK = TempK_vec[ j ], 
+               t = 1 )
+  }
+}
+
+tdepfr_out.dat <- as.data.frame( tdepfr_out.dat )
+tdepfr_out.dat$N0 <- as.factor( tdepfr_out.dat$N0 )
+tdepfr_out.dat$Pred <- as.factor( tdepfr_out.dat$Pred )
+frdat$N0 <- as.numeric( as.character( frdat$N0 ) )
+frdat$Temp <- as.factor( frdat$Temp )
+
+
+
+frdat$Temp <- as.numeric( as.character( frdat$Temp ) )
+frdat$N0 <- as.factor( frdat$N0 )
+tdepfr_out.dat$Temp <- as.numeric(tdepfr_out.dat$Temp)
+tdepfr_out.dat$Killed <- as.numeric(tdepfr_out.dat$Killed)
+
+tdep.plot <- ggplot( data.frame( Temp = c( 18, 38 ) ), aes( Temp ) ) +
+  geom_point( data = frdat, 
+              aes( x = Temp, y = Killed, colour = N0 ), size = 3 ) +
+  geom_line( data = tdepfr_out.dat, aes( x = Temp , y = Killed, colour = N0 ), size = 1 ) +
+  ylab( "Prey Killed" ) +
+  xlab( "Temperature (°C)" ) +
+  scale_y_continuous( expand = c( 0, 0 ), limits = c( 0, 65 ) ) +
+  scale_x_continuous( limits = c( 18, 38 ), breaks = c( 20, 24, 28, 32, 36 ) ) +
+  scale_color_viridis( "Density", discrete = TRUE ) +
+  theme_classic( base_size = 24, base_line_size = 1 ) + 
+  theme( panel.border = element_rect( color = "black", fill = NA, size = 0.75 ),
+         aspect.ratio = 1 )
+
+Fig3dLeg.plot <- get_legend(tdep.plot)
+tdep.plot <- tdep.plot + theme(legend.position = "none")
+
+# ggsave("Fig3d_new.png", plot = tdep.plot, units = c( "mm" ), dpi = 300, bg = "white" )
+# ggsave("Fig3d_legend.png", plot = Fig3dLeg.plot, units = c( "mm" ), dpi = 300, bg = "white" )
+```
+
+```{r}
+# Fig 4
+modelout1.df <- read.csv( "Output_PanSppNoMort.csv" )
+modelout2.df <- read.csv( "Output_PanSpp.csv" )
+
+Fig4a.plot <- ggplot( modelout1.df, aes( x = temp, y = (300 - num_survive)/300 ) ) +
+  geom_smooth( colour = "#1E88E5", fill = "#1E88E5", alpha = 0.3, size = 0.5 ) +
+  scale_x_continuous( breaks = c( 20, 24, 28, 32, 36 ) ) +
+  scale_y_continuous( expand = c( 0, 0 ) ) +
+  coord_cartesian( xlim = c( 19, 37), ylim = c(0.65, 0.9) ) +
+  theme_classic( base_size = 10, base_line_size = 0.1 ) +
+  theme( panel.border = element_rect( color = "black", fill = NA, size = 0.75 ),
+         legend.position = "bottom",
+         aspect.ratio = 1) +
+  xlab( "Temperature (°C)" ) +
+  ylab( "Predator Effect" )
+
+Fig4b.plot <- ggplot( data = devdata, aes( x = Temp, y = 1 - MortalityRate ) ) +
+  stat_function( fun = logisticfun,
+                 args = list( x1 = 37.77558593, y1 = 0.015932967, r_mort = 1.289955323),
+                 linetype = "solid",
+                 colour = "#FFC107",
+                 size = 0.5 ) +  
+  geom_ribbon( aes( x = Temp, y = mean, ymin = lcl, ymax = ucl ), data = mort_confints.dat, alpha = 0.3, fill = "#FFC107") +
+  xlab( "Temperature (°C)" ) +
+  ylab( "Temperature Effect" ) +
+  scale_x_continuous( breaks = c( 20, 24, 28, 32, 36 ) ) +
+  scale_y_continuous( expand = c(0, 0) ) +
+  coord_cartesian( xlim = c( 19, 37), ylim = c( 0, 0.4 ) ) +
+  theme_classic( base_size = 10, base_line_size = 0.1 ) +
+  theme( panel.border = element_rect( color = "black", fill = NA, size = 0.75 ),
+         aspect.ratio = 1 )
+
+Fig4c.plot <- ggplot( modelout2.df, aes( x = temp, y = (300 - num_survive)/300 ) ) +
+  geom_smooth( colour = "black", fill = "black", alpha = 0.3, size = 0.5 ) +
+  scale_x_continuous( breaks = c( 20, 24, 28, 32, 36 ) ) +
+  scale_y_continuous( expand = c( 0, 0 ) ) +
+  coord_cartesian( xlim = c( 19, 37), ylim = c(0.65, 0.9) ) +
+  theme_classic( base_size = 10, base_line_size = 0.1 ) +
+  theme( panel.border = element_rect( color = "black", fill = NA, size = 0.75 ),
+         legend.position = "bottom",
+         aspect.ratio = 1) +
+  xlab( "Temperature (°C)" ) +
+  ylab( "Pred. x Temp. Effect" )
+
+Fig4.plot <- plot_grid(Fig4a.plot, Fig4b.plot, Fig4c.plot, ncol = 1, align = c("v"), axis = c("l"), labels = c("a)", "b)", "c)" ), label_x = 0.275 )
+ggsave("Fig4.png", plot = Fig4.plot, units = c( "mm" ), dpi = 300, bg = "white" )
+```
