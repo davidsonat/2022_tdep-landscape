@@ -201,15 +201,15 @@ modelout2.df <- read.csv( "Output_PanSpp.csv" )
 
 Fig4a.plot <- ggplot( modelout1.df, aes( x = temp, y = (300 - num_survive)/300 ) ) +
   geom_smooth( colour = "#1E88E5", fill = "#1E88E5", alpha = 0.3, size = 0.5 ) +
-  scale_x_continuous( breaks = c( 20, 24, 28, 32, 36 ) ) +
   scale_y_continuous( expand = c( 0, 0 ) ) +
-  coord_cartesian( xlim = c( 19, 37), ylim = c(0.65, 0.9) ) +
+  scale_x_continuous( breaks = c( 24, 26, 28, 30, 32, 34 ) ) +
+  coord_cartesian( xlim = c( 23.92, 34.62 ), ylim = c( 0.65, 0.9 ) ) +
   theme_classic( base_size = 10, base_line_size = 0.1 ) +
   theme( panel.border = element_rect( color = "black", fill = NA, size = 0.75 ),
          legend.position = "bottom",
          aspect.ratio = 1) +
   xlab( "Temperature (°C)" ) +
-  ylab( "Predator Effect" )
+  ylab( "Prop. Mortality" )
 
 Fig4b.plot <- ggplot( data = devdata, aes( x = Temp, y = 1 - MortalityRate ) ) +
   stat_function( fun = logisticfun,
@@ -219,26 +219,26 @@ Fig4b.plot <- ggplot( data = devdata, aes( x = Temp, y = 1 - MortalityRate ) ) +
                  size = 0.5 ) +  
   geom_ribbon( aes( x = Temp, y = mean, ymin = lcl, ymax = ucl ), data = mort_confints.dat, alpha = 0.3, fill = "#FFC107") +
   xlab( "Temperature (°C)" ) +
-  ylab( "Temperature Effect" ) +
-  scale_x_continuous( breaks = c( 20, 24, 28, 32, 36 ) ) +
+  ylab( "Prop. Mortality" ) +
   scale_y_continuous( expand = c(0, 0) ) +
-  coord_cartesian( xlim = c( 19, 37), ylim = c( 0, 0.4 ) ) +
+  scale_x_continuous( breaks = c( 24, 26, 28, 30, 32, 34 ) ) +
+  coord_cartesian(xlim = c( 23.92, 34.62 ), ylim = c( 0, 0.4 ) ) +
   theme_classic( base_size = 10, base_line_size = 0.1 ) +
   theme( panel.border = element_rect( color = "black", fill = NA, size = 0.75 ),
          aspect.ratio = 1 )
 
 Fig4c.plot <- ggplot( modelout2.df, aes( x = temp, y = (300 - num_survive)/300 ) ) +
   geom_smooth( colour = "black", fill = "black", alpha = 0.3, size = 0.5 ) +
-  scale_x_continuous( breaks = c( 20, 24, 28, 32, 36 ) ) +
   scale_y_continuous( expand = c( 0, 0 ) ) +
-  coord_cartesian( xlim = c( 19, 37), ylim = c(0.65, 0.9) ) +
+  scale_x_continuous( breaks = c( 24, 26, 28, 30, 32, 34 ) ) +
+  coord_cartesian(xlim = c( 23.92, 34.62 ), ylim = c( 0.65, 0.9 ) ) +
   theme_classic( base_size = 10, base_line_size = 0.1 ) +
   theme( panel.border = element_rect( color = "black", fill = NA, size = 0.75 ),
          legend.position = "bottom",
          aspect.ratio = 1) +
   xlab( "Temperature (°C)" ) +
-  ylab( "Pred. x Temp. Effect" )
+  ylab( "Prop. Mortality" )
 
 Fig4.plot <- plot_grid(Fig4a.plot, Fig4b.plot, Fig4c.plot, ncol = 1, align = c("v"), axis = c("l"), labels = c("a)", "b)", "c)" ), label_x = 0.275 )
-ggsave("Fig4.png", plot = Fig4.plot, units = c( "mm" ), dpi = 300, bg = "white" )
+ggsave("Fig5.png", plot = Fig4.plot, units = c( "mm" ), dpi = 300, bg = "white" )
 ```
