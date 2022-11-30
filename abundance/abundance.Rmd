@@ -190,7 +190,7 @@ int_effect.plot3 <- ggplot( int_effect_pres, aes( x = MaxTemp, y = effect ) ) +
   scale_x_continuous( expand = c(0, 0) ) +
   coord_cartesian(xlim = c(23.92, 34.62)) +
   xlab("Max Temperature (°C)") +
-  ylab("Pred. x Temp. Effect") +
+  ylab("Proportional Difference") +
   scale_colour_discrete(name = "Predators") +
   theme( panel.border = element_rect( color = "black", fill = NA, size = 0.75 ),
          legend.position = "bottom",

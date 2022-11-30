@@ -209,7 +209,7 @@ Fig4a.plot <- ggplot( modelout1.df, aes( x = temp, y = (300 - num_survive)/300 )
          legend.position = "bottom",
          aspect.ratio = 1) +
   xlab( "Temperature (°C)" ) +
-  ylab( "Prop. Mortality" )
+  ylab( "Proportional Mortality" )
 
 Fig4b.plot <- ggplot( data = devdata, aes( x = Temp, y = 1 - MortalityRate ) ) +
   stat_function( fun = logisticfun,
@@ -219,7 +219,7 @@ Fig4b.plot <- ggplot( data = devdata, aes( x = Temp, y = 1 - MortalityRate ) ) +
                  size = 0.5 ) +  
   geom_ribbon( aes( x = Temp, y = mean, ymin = lcl, ymax = ucl ), data = mort_confints.dat, alpha = 0.3, fill = "#FFC107") +
   xlab( "Temperature (°C)" ) +
-  ylab( "Prop. Mortality" ) +
+  ylab( "Proportional Mortality" ) +
   scale_y_continuous( expand = c(0, 0) ) +
   scale_x_continuous( breaks = c( 24, 26, 28, 30, 32, 34 ) ) +
   coord_cartesian(xlim = c( 23.92, 34.62 ), ylim = c( 0, 0.4 ) ) +
@@ -237,7 +237,7 @@ Fig4c.plot <- ggplot( modelout2.df, aes( x = temp, y = (300 - num_survive)/300 )
          legend.position = "bottom",
          aspect.ratio = 1) +
   xlab( "Temperature (°C)" ) +
-  ylab( "Prop. Mortality" )
+  ylab( "Proportional Mortality" )
 
 Fig4.plot <- plot_grid(Fig4a.plot, Fig4b.plot, Fig4c.plot, ncol = 1, align = c("v"), axis = c("l"), labels = c("a)", "b)", "c)" ), label_x = 0.275 )
 ggsave("Fig5.png", plot = Fig4.plot, units = c( "mm" ), dpi = 300, bg = "white" )
