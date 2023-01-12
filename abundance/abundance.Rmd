@@ -181,14 +181,16 @@ int_effect.plot2 <- ggplot( int_effect, aes( MaxTemp, predicted + 1, colour = dr
 int_effect_pres <- int_effect[which(int_effect$drgn_presence == "Present"), ]
 int_effect_abs <- int_effect[which(int_effect$drgn_presence == "Absent"), ]
 int_effect_pres$effect <- (int_effect_abs$predicted - int_effect_pres$predicted)/int_effect_abs$predicted
+int_effect_pres$ci <- ((1/int_effect_abs$predicted)^2) * var(int_effect_pres$predicted) + ((int_effect_pres$predicted/(int_effect_abs$predicted^2))^2) * var(int_effect_abs$predicted)
+int_effect_pres$ci <- sqrt(int_effect_pres$ci) * 1.96
 
 int_effect.plot3 <- ggplot( int_effect_pres, aes( x = MaxTemp, y = effect ) ) +
   geom_line( size = 0.5 ) +
-  # geom_ribbon(aes( ymin = conf.low + 1, ymax = conf.high + 1, fill = drgn_presence ), alpha = 0.25, show.legend = F, colour = NA) +
-  # geom_point(abundance.df, mapping = aes(x = MaxTemp_Predicted_C, y = Mosquito + 1 ), size = 1.5, alpha = 0.35 ) +
+  geom_ribbon(aes( ymin = effect - ci, ymax = effect + ci ), alpha = 0.25, show.legend = F, colour = NA) +
   theme_classic( base_size = 10, base_line_size = 0.1 ) +
   scale_x_continuous( expand = c(0, 0) ) +
-  coord_cartesian(xlim = c(23.92, 34.62)) +
+  scale_y_continuous( expand = c(0, 0) ) +
+  coord_cartesian(xlim = c(23.92, 34.62), ylim = c(0, 1) ) +
   xlab("Max Temperature (°C)") +
   ylab("Proportional Difference") +
   scale_colour_discrete(name = "Predators") +
