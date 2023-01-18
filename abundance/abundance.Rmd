@@ -17,6 +17,7 @@ library(ggeffects)
 library(AICcmodavg)
 library(performance)
 library(cowplot)
+library(MuMIn)
 ```
 
 ```{r, echo = FALSE, warnings = FALSE, message = FALSE}
@@ -24,8 +25,7 @@ abundance.df <- read.csv("abundance_data.csv")
 abundance.df$Pool_ID <- as.factor(abundance.df$Pool_ID)
 abundance.df$Date <- as.factor(abundance.df$Date)
 
-abiotic.df <- read.csv( "../temperature/temp_predictions.csv" )
-abiotic.df <- abiotic.df[-c(2:13,15,17:20)]
+abiotic.df <- read.csv( "../temperature/MaxTemp_predicted.csv" )
 abiotic.df$Pool_ID <- as.factor(abiotic.df$Pool_ID)
 
 abundance.df <- merge(abundance.df, abiotic.df)
@@ -89,50 +89,20 @@ The truncated negative binomial model seems to work the best (lowest AIC), and i
 abundance.df <- abundance.df[which(abundance.df$MaxTemp_Predicted_C <35),]
 abundance.df$MaxTemp_Z <- (abundance.df$MaxTemp_Predicted_C - mean(abundance.df$MaxTemp_Predicted_C))/sd(abundance.df$MaxTemp_Predicted_C)
 
-mosq.cand.models <- list()
+abundance.fullmod <- glmmTMB(Mosquito ~ MaxTemp_Z * drgn_presence * Days_Between_Z + (1 | Date), ziformula = ~ drgn_presence + (1 | Date), family = truncated_nbinom2(), data = abundance.df, na.action = "na.fail")
+abundance.dredge <- dredge(abundance.fullmod)
+abundance.finalmod <- get.models(abundance.dredge, subset = delta <= 2) # Two top models, one with flooding and one without
+abundance.avgmod <- model.avg(abundance.dredge, subset = delta <= 2) # Apply model averaging
 
+# Generate summary stats, save model
+summary(abundance.avgmod)
+confint(abundance.avgmod)
+r2(abundance.avgmod) # As I suspected, r^2 values can't be calculated for these types of models
+r2(abundance.finalmod[[1]]) # We can report the individual models' r-squareds and the weights
+r2(abundance.finalmod[[2]])
 
-# Temperature alone
-mosq.cand.models[[1]] <- glmmTMB(Mosquito ~ MaxTemp_Z + (1 | Date), ziformula = ~ drgn_presence + (1 | Date), family = truncated_nbinom2(), data = abundance.df)
+# write.csv(abundance.dredge, file = "../temperature/Abundance_aic.csv")
 
-# Dragons alone
-mosq.cand.models[[2]] <- glmmTMB(Mosquito ~ drgn_presence + (1 | Date), ziformula = ~ drgn_presence + (1 | Date), family = truncated_nbinom2(), data = abundance.df)
-
-# Days since last flooding alone
-mosq.cand.models[[3]] <- glmmTMB(Mosquito ~ Days_Between_Z + (1 | Date), ziformula = ~ drgn_presence + (1 | Date), family = truncated_nbinom2(), data = abundance.df)
-
-# Temperature and dragons
-mosq.cand.models[[4]] <- glmmTMB(Mosquito ~ MaxTemp_Z * drgn_presence + (1 | Date), ziformula = ~ drgn_presence + (1 | Date), family = truncated_nbinom2(), data = abundance.df)
-
-# Temperature and days since
-mosq.cand.models[[5]] <- glmmTMB(Mosquito ~ MaxTemp_Z + Days_Between_Z + (1 | Date), ziformula = ~ drgn_presence + (1 | Date), family = truncated_nbinom2(), data = abundance.df)
-
-# Dragons and days since
-mosq.cand.models[[6]] <- glmmTMB(Mosquito ~ drgn_presence + Days_Between_Z + (1 | Date), ziformula = ~ drgn_presence + (1 | Date), family = truncated_nbinom2(), data = abundance.df)
-
-# All three
-mosq.cand.models[[7]] <- glmmTMB(Mosquito ~ MaxTemp_Z * drgn_presence + Days_Between_Z + (1 | Date), ziformula = ~ drgn_presence + (1 | Date), family = truncated_nbinom2(), data = abundance.df)
-
-# No interaction term
-mosq.cand.models[[8]] <- glmmTMB(Mosquito ~ MaxTemp_Z + drgn_presence + (1 | Date), ziformula = ~ drgn_presence + (1 | Date), family = truncated_nbinom2(), data = abundance.df)
-
-```
-
-```{r}
-aic_table <- aictab(cand.set = mosq.cand.models, sort = TRUE)
-aic_table
-# write.csv(aic_table, file = "aictab.csv")
-
-r2(mosq.cand.models[[1]])
-r2(mosq.cand.models[[2]])
-r2(mosq.cand.models[[3]])
-r2(mosq.cand.models[[4]])
-r2(mosq.cand.models[[5]])
-r2(mosq.cand.models[[6]])
-r2(mosq.cand.models[[7]])
-
-summary(mosq.cand.models[[4]])
-confint(mosq.cand.models[[4]])
 ```
 
 
@@ -212,88 +182,36 @@ ggsave("../abundance/Fig6_legend.png", plot = legend.plot, units = c( "mm" ), dp
 ```{r}
 ## Landscape Level Predictions
 # We'll do some predictions where T = current predicted, and T = current + 2.5
-ambient.df <- predict(mosq.cand.models[[4]], newdata = abundance.df, type = "response", allow.new.levels = TRUE, se.fit = TRUE)
-sum(ambient.df$fit) # mean estimate = 8593.3
-sum(ambient.df$fit - ambient.df$se.fit) # low end = 4136.3
-sum(ambient.df$fit + ambient.df$se.fit) # high end = 13050.3
+ambient.df <- predict(model.avg(abundance.dredge, subset = delta <= 2, fit = TRUE), newdata = abundance.df, type = "response", allow.new.levels = TRUE, se.fit = TRUE)
+sum(ambient.df$fit) # mean estimate = 8621.5
+sum(ambient.df$fit - ambient.df$se.fit) # low end = 4030.7
+sum(ambient.df$fit + ambient.df$se.fit) # high end = 13212.3
 
+abundance2.df <- abundance.df
 abundance2.df$MaxTemp_Z <- abundance.df$MaxTemp_Z + (2.5)/sd(abundance.df$MaxTemp_Predicted_C)
-warmed.df <- predict(mosq.cand.models[[4]], newdata = abundance2.df, type = "response", allow.new.levels = TRUE, se.fit = TRUE)
-sum(warmed.df$fit) # mean estimate = 15466.23
-sum(warmed.df$fit - warmed.df$se.fit) # low end = 6212.8
-sum(warmed.df$fit + warmed.df$se.fit) # high end = 24679.7
+warmed.df <- predict(model.avg(abundance.dredge, subset = delta <= 2, fit = TRUE), newdata = abundance2.df, type = "response", allow.new.levels = TRUE, se.fit = TRUE)
+sum(warmed.df$fit) # mean estimate = 15674.0
+sum(warmed.df$fit - warmed.df$se.fit) # low end = 6069.9
+sum(warmed.df$fit + warmed.df$se.fit) # high end = 25278.1
 
 
 # So, between 1.5 to 1.9x more mosquito production at T + 2.5C
 ```
 
 
+
 # Models of Dragonfly Abundance
 
 ```{r, echo = FALSE}
-drgn_trunc_nbinom2 <- glmmTMB(Skimmer_Dragonfly ~ MaxTemp_Z + (1 | Pool_ID), ziformula = ~., family = truncated_nbinom2(), data = abundance.df)
-summary(drgn_trunc_nbinom2)
-testZeroInflation(drgn_trunc_nbinom2)
-testDispersion(drgn_trunc_nbinom2)
+dfly.fullmod <- glmmTMB(Skimmer_Dragonfly ~ MaxTemp_Z + Pct_Shaded_Z + Days_Between_Z + (1 | Date), ziformula = ~ Pct_Shaded_Z, family = truncated_nbinom2(), data = abundance.df, na.action = "na.fail")
+dfly.dredge <- dredge(dfly.fullmod)
+dfly.finalmod <- get.models(dfly.dredge, subset = delta <= 2) # 7 top models... holy hell
+dfly.finalmod
+dfly.avgmod <- model.avg(dfly.dredge, subset = delta <= 2) # Apply model averaging
 
-# There's still a bit of overdispersion here, but it beats nbinom1()
+# Generate summary stats, save model
+summary(dfly.avgmod) # All that to say that they are simply less likely to be present in shaded pools
+confint(dfly.avgmod)
+
+# write.csv(dfly.dredge, file = "../temperature/dragonfly_aic.csv")
 ```
-
-```{r, echo = FALSE}
-drgn_trunc_nbinom2 <- glmmTMB(Skimmer_Dragonfly ~ MaxTemp_Z + Pct_Shaded_Z + (1 | Pool_ID), ziformula = ~., family = truncated_nbinom2(), data = abundance.df)
-summary(drgn_trunc_nbinom2)
-```
-
-The zero-inflated negative binomial model has the lowest AIC. Dragonfly abundance isn't correlated with temperature, but their presence (from the zero-inflation model) seems to be more common in unshaded (but not necessarily warmer!) pools.
-
-Now to play with additional variables of importance (e.g., days since last flood from Stunkle et al. 2021). It might also help to exclude temperature from the above model.
-
-```{r, echo = FALSE}
-shade.dat <- read.csv("../temperature/abiotic_data.csv")
-shade.dat$Pool_ID <- as.factor(shade.dat$Pool_ID)
-shade.dat$Pct_Shaded <- as.numeric(shade.dat$Pct_Shaded)
-shade.dat <- shade.dat[-c(2:7,9)]
-abundance.df <- merge(abundance.df, shade.dat)
-abundance.df$Pct_Shaded <- abundance.df$Pct_Shaded/100
-abundance.df$Pct_Shaded_Z <- (abundance.df$Pct_Shaded - mean(abundance.df$Pct_Shaded))/sd(abundance.df$Pct_Shaded)
-dfly.cand.models <- list()
-
-# Temperature alone
-dfly.cand.models[[1]] <- glmmTMB(Skimmer_Dragonfly ~ MaxTemp_Z + (1 | Date), ziformula = ~., family = truncated_nbinom2(), data = abundance.df)
-
-# Shading alone
-dfly.cand.models[[2]] <- glmmTMB(Skimmer_Dragonfly ~ Pct_Shaded_Z + (1 | Date), ziformula = ~., family = truncated_nbinom2(), data = abundance.df)
-
-# Days since last flooding alone
-dfly.cand.models[[3]] <- glmmTMB(Skimmer_Dragonfly ~ Days_Between_Z + (1 | Date), ziformula = ~., family = truncated_nbinom2(), data = abundance.df)
-
-# Temperature and shading
-dfly.cand.models[[4]] <- glmmTMB(Skimmer_Dragonfly ~ MaxTemp_Z + Pct_Shaded_Z + (1 | Date), ziformula = ~., family = truncated_nbinom2(), data = abundance.df)
-
-# Temperature and days since
-dfly.cand.models[[5]] <- glmmTMB(Skimmer_Dragonfly ~ MaxTemp_Z + Days_Between_Z + (1 | Date), ziformula = ~., family = truncated_nbinom2(), data = abundance.df)
-
-# Shading and days since
-dfly.cand.models[[6]] <- glmmTMB(Skimmer_Dragonfly ~ Pct_Shaded_Z + Days_Between_Z + (1 | Date), ziformula = ~., family = truncated_nbinom2(), data = abundance.df)
-
-# All three
-dfly.cand.models[[7]] <- glmmTMB(Skimmer_Dragonfly ~ MaxTemp_Z + Pct_Shaded_Z + Days_Between_Z + (1 | Date), ziformula = ~., family = truncated_nbinom2(), data = abundance.df)
-
-
-r2(dfly.cand.models[[1]])
-r2(dfly.cand.models[[2]])
-r2(dfly.cand.models[[3]])
-r2(dfly.cand.models[[4]])
-r2(dfly.cand.models[[5]])
-r2(dfly.cand.models[[6]])
-r2(dfly.cand.models[[7]])
-
-
-summary(dfly.cand.models[[2]])
-confint(dfly.cand.models[[6]])
-summary(dfly.cand.models[[6]])
-```
-
-Models 2 and 6 do best (and are roughly equivalent), which include just shading (mod2) or shading and days since last flood (mod6). Both suggest that less shady pools  should have dragonflies (i.e., the zero-inflated component) but aren't predictors of abundance.
-
-Similarly here, using flood height vs. time since last flood is roughly equivalent.
