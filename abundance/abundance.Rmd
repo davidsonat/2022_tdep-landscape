@@ -82,7 +82,7 @@ testZeroInflation(mosq_trunc_nbinom2)
 The truncated negative binomial model seems to work the best (lowest AIC), and indicates a positive effect of temperature on mosquito abundance, a negative effect of dragonflies, and a positive interaction term. This suggests that mosquitoes are more abundant in warmer pools, less abundant where dragonflies are present, but temperature may mitigate this effect somewhat.
 
 
-## Models Including Flooding and Other Variables
+## Mosquito Abundance Models
 
 ```{r, echo = FALSE}
 # This limits the analysis to temperatures below where they stopped co-occurring
@@ -108,74 +108,74 @@ r2(abundance.finalmod[[2]])
 
 
 ```{r}
-int_effect <- ggpredict(mosq.cand.models[[4]], terms = c("MaxTemp_Z [all]", "drgn_presence"), ci.lvl = 0.95, type = "fe.zi")
-int_effect2 <- ggpredict(mosq.cand.models[[4]], terms = c("drgn_presence"), ci.lvl = 0.95, type = "zi.prob") # Remember, these are pr(ABSENCE)
-int_effect$MaxTemp <- int_effect$x * sd(abundance.df$MaxTemp_Predicted_C) + mean(abundance.df$MaxTemp_Predicted_C) 
-int_effect$drgn_presence <- int_effect$group
-int_effect2$std.error_tf <- (int_effect2$conf.high - int_effect2$predicted)/1.96
-int_effect2$predicted <- 1 - int_effect2$predicted
-int_effect2$x <- as.factor(int_effect2$x)
-nonzero.df <- abundance.df[ which(abundance.df$Mosquito > 0), ] # Grab nonzero observations
-
-int_effect.plot1 <- ggplot(int_effect2, aes(x = x, y = predicted)) +
-  geom_bar( stat = "identity", aes( fill = x ) ) +
-  geom_errorbar( aes( ymin = predicted - std.error_tf, ymax = predicted + std.error_tf ), width = .2 ) +
-  scale_y_continuous( expand = c(0, 0) ) +
-  coord_cartesian(ylim = c(0, 1)) +
-  xlab("Predators") +
-  ylab("Probability of Prey Presence") +
-  scale_fill_manual( values = c( "#FFC107", "#1E88E5" ) ) +
-  theme_classic( base_size = 10, base_line_size = 0.1 ) +
-  theme( panel.border = element_rect( color = "black", fill = NA, size = 0.75 ),
-         legend.position = "none",
-         aspect.ratio = 1)
-
-
-int_effect.plot2 <- ggplot( int_effect, aes( MaxTemp, predicted + 1, colour = drgn_presence ) ) +
-  geom_line( size = 0.5 ) +
-  geom_ribbon(aes( ymin = conf.low + 1, ymax = conf.high + 1, fill = drgn_presence ), alpha = 0.25, show.legend = F, colour = NA) +
-  geom_point(nonzero.df, mapping = aes(x = MaxTemp_Predicted_C, y = Mosquito + 1 ), size = 1, alpha = 0.35 ) +
-  theme_classic( base_size = 10, base_line_size = 0.1 ) +
-  scale_y_log10( expand = c(0, 0) ) +
-  scale_x_continuous( expand = c(0, 0) ) +
-  coord_cartesian(xlim = c(23.92, 34.62)) +
-  xlab("Max Temperature (°C)") +
-  ylab("Prey Abundance + 1") +
-  scale_colour_manual( name = "Predators", values = c( "#FFC107", "#1E88E5" ) ) +
-  scale_fill_manual( name = "Predators", values = c( "#FFC107", "#1E88E5" ) ) +
-  theme( panel.border = element_rect( color = "black", fill = NA, size = 0.75 ),
-         legend.position = "right",
-         aspect.ratio = 1)
-
-
-int_effect_pres <- int_effect[which(int_effect$drgn_presence == "Present"), ]
-int_effect_abs <- int_effect[which(int_effect$drgn_presence == "Absent"), ]
-int_effect_pres$effect <- (int_effect_abs$predicted - int_effect_pres$predicted)/int_effect_abs$predicted
-int_effect_pres$ci <- ((1/int_effect_abs$predicted)^2) * var(int_effect_pres$predicted) + ((int_effect_pres$predicted/(int_effect_abs$predicted^2))^2) * var(int_effect_abs$predicted)
-int_effect_pres$ci <- sqrt(int_effect_pres$ci) * 1.96
-
-int_effect.plot3 <- ggplot( int_effect_pres, aes( x = MaxTemp, y = effect ) ) +
-  geom_line( size = 0.5 ) +
-  geom_ribbon(aes( ymin = effect - ci, ymax = effect + ci ), alpha = 0.25, show.legend = F, colour = NA) +
-  theme_classic( base_size = 10, base_line_size = 0.1 ) +
-  scale_x_continuous( expand = c(0, 0) ) +
-  scale_y_continuous( expand = c(0, 0) ) +
-  coord_cartesian(xlim = c(23.92, 34.62), ylim = c(0, 2.2) ) +
-  xlab("Max Temperature (°C)") +
-  ylab("Proportional Difference") +
-  scale_colour_discrete(name = "Predators") +
-  theme( panel.border = element_rect( color = "black", fill = NA, size = 0.75 ),
-         legend.position = "bottom",
-         aspect.ratio = 1)
-
-legend.plot <- get_legend(int_effect.plot2)
-int_effect.plot2 <- int_effect.plot2 + theme( legend.position = "none" )
-
-Fig6.plot <- plot_grid(int_effect.plot1, int_effect.plot2, int_effect.plot3, ncol = 1, align = c("v"), axis = c("l"), labels = c("a)", "b)", "c)" ), label_x = 0.275 )
-
-
-ggsave("../abundance/Fig6.png", plot = Fig6.plot, units = c( "mm" ), dpi = 300, bg = "white" )
-ggsave("../abundance/Fig6_legend.png", plot = legend.plot, units = c( "mm" ), dpi = 300, bg = "white" )
+# int_effect <- ggpredict(model.avg(abundance.dredge, subset = delta <= 2, fit = TRUE), terms = c("MaxTemp_Z [all]", "drgn_presence"), ci.lvl = 0.95, type = "fe.zi")
+# int_effect2 <- ggpredict(model.avg(abundance.dredge, subset = delta <= 2, fit = TRUE), terms = c("drgn_presence"), ci.lvl = 0.95, type = "zi.prob") # Remember, these are pr(ABSENCE)
+# int_effect$MaxTemp <- int_effect$x * sd(abundance.df$MaxTemp_Predicted_C) + mean(abundance.df$MaxTemp_Predicted_C) 
+# int_effect$drgn_presence <- int_effect$group
+# int_effect2$std.error_tf <- (int_effect2$conf.high - int_effect2$predicted)/1.96
+# int_effect2$predicted <- 1 - int_effect2$predicted
+# int_effect2$x <- as.factor(int_effect2$x)
+# nonzero.df <- abundance.df[ which(abundance.df$Mosquito > 0), ] # Grab nonzero observations
+# 
+# int_effect.plot1 <- ggplot(int_effect2, aes(x = x, y = predicted)) +
+#   geom_bar( stat = "identity", aes( fill = x ) ) +
+#   geom_errorbar( aes( ymin = predicted - std.error_tf, ymax = predicted + std.error_tf ), width = .2 ) +
+#   scale_y_continuous( expand = c(0, 0) ) +
+#   coord_cartesian(ylim = c(0, 1)) +
+#   xlab("Predators") +
+#   ylab("Probability of Prey Presence") +
+#   scale_fill_manual( values = c( "#FFC107", "#1E88E5" ) ) +
+#   theme_classic( base_size = 10, base_line_size = 0.1 ) +
+#   theme( panel.border = element_rect( color = "black", fill = NA, size = 0.75 ),
+#          legend.position = "none",
+#          aspect.ratio = 1)
+# 
+# 
+# int_effect.plot2 <- ggplot( int_effect, aes( MaxTemp, predicted + 1, colour = drgn_presence ) ) +
+#   geom_line( size = 0.5 ) +
+#   geom_ribbon(aes( ymin = conf.low + 1, ymax = conf.high + 1, fill = drgn_presence ), alpha = 0.25, show.legend = F, colour = NA) +
+#   geom_point(nonzero.df, mapping = aes(x = MaxTemp_Predicted_C, y = Mosquito + 1 ), size = 1, alpha = 0.35 ) +
+#   theme_classic( base_size = 10, base_line_size = 0.1 ) +
+#   scale_y_log10( expand = c(0, 0) ) +
+#   scale_x_continuous( expand = c(0, 0) ) +
+#   coord_cartesian(xlim = c(23.92, 34.62)) +
+#   xlab("Max Temperature (°C)") +
+#   ylab("Prey Abundance + 1") +
+#   scale_colour_manual( name = "Predators", values = c( "#FFC107", "#1E88E5" ) ) +
+#   scale_fill_manual( name = "Predators", values = c( "#FFC107", "#1E88E5" ) ) +
+#   theme( panel.border = element_rect( color = "black", fill = NA, size = 0.75 ),
+#          legend.position = "right",
+#          aspect.ratio = 1)
+# 
+# 
+# int_effect_pres <- int_effect[which(int_effect$drgn_presence == "Present"), ]
+# int_effect_abs <- int_effect[which(int_effect$drgn_presence == "Absent"), ]
+# int_effect_pres$effect <- (int_effect_abs$predicted - int_effect_pres$predicted)/int_effect_abs$predicted
+# int_effect_pres$ci <- ((1/int_effect_abs$predicted)^2) * var(int_effect_pres$predicted) + ((int_effect_pres$predicted/(int_effect_abs$predicted^2))^2) * var(int_effect_abs$predicted)
+# int_effect_pres$ci <- sqrt(int_effect_pres$ci) * 1.96
+# 
+# int_effect.plot3 <- ggplot( int_effect_pres, aes( x = MaxTemp, y = effect ) ) +
+#   geom_line( size = 0.5 ) +
+#   geom_ribbon(aes( ymin = effect - ci, ymax = effect + ci ), alpha = 0.25, show.legend = F, colour = NA) +
+#   theme_classic( base_size = 10, base_line_size = 0.1 ) +
+#   scale_x_continuous( expand = c(0, 0) ) +
+#   scale_y_continuous( expand = c(0, 0) ) +
+#   coord_cartesian(xlim = c(23.92, 34.62), ylim = c(0, 2.2) ) +
+#   xlab("Max Temperature (°C)") +
+#   ylab("Proportional Difference") +
+#   scale_colour_discrete(name = "Predators") +
+#   theme( panel.border = element_rect( color = "black", fill = NA, size = 0.75 ),
+#          legend.position = "bottom",
+#          aspect.ratio = 1)
+# 
+# legend.plot <- get_legend(int_effect.plot2)
+# int_effect.plot2 <- int_effect.plot2 + theme( legend.position = "none" )
+# 
+# Fig6.plot <- plot_grid(int_effect.plot1, int_effect.plot2, int_effect.plot3, ncol = 1, align = c("v"), axis = c("l"), labels = c("a)", "b)", "c)" ), label_x = 0.275 )
+# 
+# 
+# # ggsave("../abundance/Fig6.png", plot = Fig6.plot, units = c( "mm" ), dpi = 300, bg = "white" )
+# # ggsave("../abundance/Fig6_legend.png", plot = legend.plot, units = c( "mm" ), dpi = 300, bg = "white" )
 ```
 
 

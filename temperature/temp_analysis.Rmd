@@ -215,16 +215,23 @@ Some subsequent models, for minimum temperatures and the coefficient of variatio
 mintempfull.mod <- glmmTMB(MinWTemp_C ~ Depth_Z * SurfArea_Z * Pct_Shaded_Z + MaxRTemp_Z, data = temp.df, na.action = "na.fail" ) 
 mintemp.dredge <- dredge(mintempfull.mod) # Won't run with pool-level random effect
 mintempfinal.mod <- get.models(mintemp.dredge, subset = delta <= 2) # This would need model averaging, as four models are tied for top
+mintempavg.mod <- model.avg(mintemp.dredge, subset = delta <= 2)
 
 
 # Generate summary stats, save model
+summary(mintempavg.mod)
+confint(mintempavg.mod)
+r2(mintempfinal.mod[[1]])
+r2(mintempfinal.mod[[2]])
+r2(mintempfinal.mod[[3]])
+r2(mintempfinal.mod[[4]])
 check_collinearity(mintempfinal.mod[[1]]) 
-summary(mintempfinal.mod[[1]])
-confint(mintempfinal.mod[[1]])
-r2(mintempfinal.mod[[1]]) 
+check_collinearity(mintempfinal.mod[[2]]) 
+check_collinearity(mintempfinal.mod[[3]]) 
+check_collinearity(mintempfinal.mod[[4]]) 
 
-# write.csv(maxtemp.dredge, file = "../temperature/MaxTemp_aic.csv")
-# saveRDS(maxtemp.mod_avg, file = "BelleRP_MaxTemp.rds")
+
+# write.csv(maxtemp.dredge, file = "../temperature/MinTemp_aic.csv")
 ```
 
 # CV Temperature Model
@@ -233,14 +240,17 @@ r2(mintempfinal.mod[[1]])
 cvtempfull.mod <- glmmTMB(cvWTemp_C ~ Depth_Z * SurfArea_Z * Pct_Shaded_Z + MaxRTemp_Z + (1 | Pool_ID), data = temp.df, na.action = "na.fail" ) 
 cvtemp.dredge <- dredge(cvtempfull.mod) # Won't run with pool-level random effect
 cvtempfinal.mod <- get.models(cvtemp.dredge, subset = delta <= 2) # This would need model averaging, as four models are tied for top
-
+cvtempavg.mod <- model.avg(cvtemp.dredge, subset = delta <= 2)
 
 # Generate summary stats, save model
-check_collinearity(mintempfinal.mod[[1]]) 
-summary(mintempfinal.mod[[1]])
-confint(mintempfinal.mod[[1]])
-r2(mintempfinal.mod[[1]]) 
+summary(cvtempavg.mod)
+confint(cvtempavg.mod)
+r2(cvtempfinal.mod[[1]])
+r2(cvtempfinal.mod[[2]])
+r2(cvtempfinal.mod[[3]])
+check_collinearity(cvtempfinal.mod[[1]]) 
+check_collinearity(cvtempfinal.mod[[2]]) 
+check_collinearity(cvtempfinal.mod[[3]]) 
 
-# write.csv(maxtemp.dredge, file = "../temperature/MaxTemp_aic.csv")
-# saveRDS(maxtemp.mod_avg, file = "BelleRP_MaxTemp.rds")
+# write.csv(cvtemp.dredge, file = "../temperature/CVTemp_aic.csv")
 ```
